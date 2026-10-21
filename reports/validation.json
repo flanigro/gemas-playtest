@@ -1,0 +1,15 @@
+{
+  "status": "passed",
+  "checks": [
+    "Setup 768/390/320px, exact 16 Figma SVG slots and local fonts, no horizontal overflow.",
+    "Independent palette controls and accurate variable deck/repetition text.",
+    "Manual game: 7 conversions, immutable gems, preview/OK, score dialog, undo/redo and mobile board.",
+    "Real Worker beginner: complete 4×4 game, 15 history entries.",
+    "Real Worker experienced: complete 4×6 game, 23 history entries.",
+    "Standalone file opens without server, with embedded SVGs and fonts.",
+    "Standalone embedded Blob Worker completes a game without imports or server.",
+    "Direct file index.html starts a game without CORS errors."
+  ],
+  "errors": [],
+  "failed": []
+}
