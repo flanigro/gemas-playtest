@@ -1,0 +1,20 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="46" height="28" viewBox="0 0 46 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Interruptor">
+<rect x="0.5" y="0.5" width="45" height="27" rx="13.5" fill="#E9E8E5"/>
+<rect x="0.5" y="0.5" width="45" height="27" rx="13.5" stroke="#D6D4CF"/>
+<g id="Ellipse" filter="url(#filter0_d_0_1615)">
+<circle cx="14" cy="14" r="11" fill="white"/>
+</g>
+</g>
+<defs>
+<filter id="filter0_d_0_1615" x="1" y="2" width="26" height="26" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+<feFlood flood-opacity="0" result="BackgroundImageFix"/>
+<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+<feOffset dy="1"/>
+<feGaussianBlur stdDeviation="1"/>
+<feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.18 0"/>
+<feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_0_1615"/>
+<feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_0_1615" result="shape"/>
+</filter>
+</defs>
+</svg>
