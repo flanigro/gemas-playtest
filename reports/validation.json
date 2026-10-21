@@ -3,12 +3,19 @@
   "checks": [
     "Setup 768/390/320px, exact 16 Figma SVG slots and local fonts, no horizontal overflow.",
     "Independent palette controls and accurate variable deck/repetition text.",
-    "Manual game: 7 conversions, immutable gems, preview/OK, score dialog, undo/redo and mobile board.",
+    "Owner boxes use white/black backgrounds without dots; opening footer controls are visible with laboratory closed; old saves export unchanged and are archived before a new rules-0.2 game.",
+    "Native drag-and-drop preserves state, hand, deck and turn until on-card OK or target Converter; both branches work even after a previous conversion mode; footer undo/redo, save/load roundtrip and refusal of legacy imports work without laboratory.",
+    "Conversion help marks legal hand cards and targets before choosing a cell; table/bar/hand conversion paths commit once without extra OK.",
+    "Detail panel starts collapsed, preserves toggles during moves, and general score remains sticky; compact cards keep square gem viewports at 320/390/768/1100px, including six columns.",
+    "Manual game: 8 on-card conversions, on-card OK, preview, active-hand toolbar, per-symbol scores, default links and toggle, 768/390/320px, undo/redo.",
     "Real Worker beginner: complete 4×4 game, 15 history entries.",
     "Real Worker experienced: complete 4×6 game, 23 history entries.",
+    "New game UI starts both computer levels for human Branco and Preto and returns the turn after a legal reply.",
     "Standalone file opens without server, with embedded SVGs and fonts.",
     "Standalone embedded Blob Worker completes a game without imports or server.",
-    "Direct file index.html starts a game without CORS errors."
+    "Direct file index.html starts a game without CORS errors.",
+    "Opening dev.html directly redirects to the standalone index.html in Chrome.",
+    "Both computer levels complete opening and game even when the browser denies Workers."
   ],
   "errors": [],
   "failed": []
