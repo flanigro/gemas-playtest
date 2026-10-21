@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {newGame,dispatch,legal,legalActions,score,assertState,cardById} from '../src/engine.mjs';
 import {generateDeck,analyzeDeck,cardType} from '../src/generator.mjs';
-import {normalizeConfig,adjacent} from '../src/config.mjs';
+import {normalizeConfig,adjacent,RULES_VERSION} from '../src/config.mjs';
 import {GameSession} from '../src/session.mjs';
 import {observeGame,chooseAction} from '../src/opponent.mjs';
 import {OpponentController} from '../src/opponent-controller.mjs';
@@ -68,13 +68,14 @@ test('oráculo independente confere todos os atributos em tabuleiros aleatórios
     }
   }
 });
-function conversionFixture({last=false,allow=false,otherEmpty=false,blockFirst=false}={}){
-  let s=newGame('conversion-fixture',{colors:4,shapes:4,opener:'branco',allowLastConversion:allow,blockFirstConversion:blockFirst});
+function conversionFixture({last=false,allow=false,otherEmpty=false,loneEnemy=false}={}){
+  let s=newGame('conversion-fixture',{colors:4,shapes:4,opener:'branco',allowLastConversion:allow});
   const target=s.cards[0],colors=target.gems.map(g=>g.color);
   const placed=s.cards.find(c=>c.id!==target.id&&c.gems.some(g=>g.color===colors[0]));
   const old=s.cards.find(c=>![target.id,placed.id].includes(c.id)&&c.gems.some(g=>g.color===colors[1]));
   s.phase='jogando';s.current='branco';s.turn=3;s.moves={branco:1,preto:1};s.board.fill(null);s.board[5]={id:target.id,owner:'preto'};s.board[4]={id:old.id,owner:'branco'};
   const rest=s.cards.map(c=>c.id).filter(id=>![target.id,placed.id,old.id].includes(id));
+  if(!loneEnemy)s.board[15]={id:rest.shift(),owner:'preto'};
   s.hands={branco:[placed.id,...(last?[]:[rest.shift()])],preto:otherEmpty?[]:[rest.shift()]};s.deck=rest;
   assertState(s);return {s,a:{type:'move',mode:'converter',cardId:placed.id,position:1,target:5}};
 }
@@ -101,8 +102,30 @@ test('última carta proibida por padrão; variante passa automaticamente e encer
   const both=conversionFixture({last:true,allow:true,otherEmpty:true}),end=dispatch(both.s,both.a);
   assert.equal(end.phase,'finalizada');assert.equal(end.endReason,'maos-vazias');assert.ok(end.deck.length>0);assert.ok(end.board.some(c=>!c));assert.equal(legalActions(end).length,0);
 });
-test('restrição experimental de primeira conversão é por jogador, não pelo turno global',()=>{
-  const {s,a}=conversionFixture({blockFirst:true});s.moves.branco=0;s.turn=9;assert.equal(legal(s,a).ok,false);s.moves.branco=1;assert.equal(legal(s,a).ok,true);
+test('primeira jogada é protegida para cada jogador, independentemente do turno ou de opções antigas',()=>{
+  assert.equal(normalizeConfig().blockFirstConversion,true);
+  assert.equal(normalizeConfig({blockFirstConversion:false}).blockFirstConversion,true);
+  for(const owner of ['branco','preto']){
+    const {s,a}=conversionFixture();
+    if(owner==='preto'){
+      for(const cell of s.board)if(cell)cell.owner=cell.owner==='branco'?'preto':'branco';
+      [s.hands.branco,s.hands.preto]=[s.hands.preto,s.hands.branco];s.current='preto';
+    }
+    s.moves[owner]=0;s.moves[owner==='branco'?'preto':'branco']=9;s.turn=34;
+    const before=structuredClone(s);assert.equal(legal(s,a).ok,false);assert.match(legal(s,a).reason,/primeira jogada/);
+    assert.equal(legalActions(s).some(a=>a.mode==='converter'),false);assert.throws(()=>dispatch(s,a),/primeira jogada/);assert.deepEqual(s,before);
+    for(const difficulty of ['beginner','experienced'])assert.equal(chooseAction(observeGame(s),{difficulty}).action.mode,'normal');
+    s.moves[owner]=1;assert.equal(legal(s,a).ok,true);
+  }
+});
+test('a última carta adversária do tabuleiro é protegida, inclusive na variante da última carta da mão',()=>{
+  for(const allow of [false,true]){
+    const {s,a}=conversionFixture({loneEnemy:true,allow});const before=structuredClone(s);
+    assert.equal(legal(s,a).ok,false);assert.match(legal(s,a).reason,/última carta adversária/);
+    assert.equal(legalActions(s).some(a=>a.mode==='converter'),false);assert.throws(()=>dispatch(s,a),/última carta adversária/);assert.deepEqual(s,before);
+    for(const difficulty of ['beginner','experienced'])assert.equal(chooseAction(observeGame(s),{difficulty}).action.mode,'normal');
+  }
+  const {s,a}=conversionFixture();const after=dispatch(s,a);assert.equal(after.board.filter(c=>c?.owner==='preto').length,1);assertState(after);
 });
 const setup=(seed='save',config={})=>({seed,config,players:{branco:'human',preto:'human'},difficulty:'beginner',theme:'marble'});
 test('salvar, retomar e ramificar preservam cartas, semente, opções e histórico',()=>{
@@ -110,6 +133,11 @@ test('salvar, retomar e ramificar preservam cartas, semente, opções e históri
   const restored=GameSession.load(session.serialize());assert.equal(restored.serialize(),session.serialize());restored.redo();assert.equal(restored.cursor,2);restored.undo();restored.dispatch(legalActions(restored.state)[1]);assert.equal(restored.commands.length,2);
   const tampered=JSON.parse(restored.serialize());tampered.state.deck.reverse();assert.throws(()=>GameSession.load(JSON.stringify(tampered)),/reprodução/);
   assert.throws(()=>GameSession.load(JSON.stringify({format:'CM-PLAYTEST-SAVE'})),/GEMAS/);
+});
+test('salvamentos anteriores são identificados e recusados sem alterar o conteúdo',()=>{
+  const session=new GameSession(setup()),saved=JSON.parse(session.serialize());saved.rulesVersion='GEMAS-RULES-0.1';
+  const text=JSON.stringify(saved);assert.notEqual(saved.rulesVersion,RULES_VERSION);
+  assert.throws(()=>GameSession.load(text),/regras anteriores/);assert.equal(JSON.stringify(saved),text);
 });
 test('relatório adulterado é recusado no carregamento',()=>{
   const session=new GameSession(setup()),report=chooseAction(observeGame(session.state));session.dispatch(report.action,report);
