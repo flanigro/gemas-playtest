@@ -27,7 +27,8 @@ export class GameSession {
   serialize(){return JSON.stringify({format:'GEMAS-SAVE',version:1,rulesVersion:RULES_VERSION,generatorVersion:GENERATOR_VERSION,setup:this.setup,commands:this.commands,reports:this.reports,cursor:this.cursor,notes:this.notes,state:this.state},null,2);}
   static load(text){
     demand(typeof text==='string'&&text.length<=3_000_000,'Arquivo grande demais ou inválido.');const saved=JSON.parse(text);
-    demand(saved.format==='GEMAS-SAVE'&&saved.version===1&&saved.rulesVersion===RULES_VERSION&&saved.generatorVersion===GENERATOR_VERSION,'Este arquivo não é uma partida compatível de GEMAS.');
+    demand(saved.format==='GEMAS-SAVE'&&saved.version===1,'Este arquivo não é uma partida compatível de GEMAS.');
+    demand(saved.rulesVersion===RULES_VERSION&&saved.generatorVersion===GENERATOR_VERSION,'Esta partida de GEMAS usa regras anteriores. Guarde o arquivo e inicie uma nova partida para aplicar as regras atuais.');
     const session=new GameSession(saved.setup),max=session.state.config.active.length-1;
     demand(Array.isArray(saved.commands)&&saved.commands.length<=max&&Array.isArray(saved.reports)&&saved.reports.length===saved.commands.length,'Histórico incompatível.');
     demand(Number.isInteger(saved.cursor)&&saved.cursor>=0&&saved.cursor<=saved.commands.length&&typeof saved.notes==='string'&&saved.notes.length<=100000,'Cursor ou notas inválidos.');

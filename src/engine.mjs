@@ -20,6 +20,7 @@ export function assertState(state) {
   const full=config.active.every(i=>state.board[i]),empty=OWNERS.every(p=>!state.hands[p].length);
   if(state.phase==='abertura')demand(state.board.every(c=>c===null)&&state.turn===0&&state.current===other(config.opener)&&OWNERS.every(p=>state.hands[p].length===4),'Abertura inconsistente.');
   if(state.phase==='jogando')demand(!full&&!empty&&state.hands[state.current].length>0&&state.endReason===null,'Partida sem próximo jogador legal.');
+  if(state.phase!=='abertura')demand(OWNERS.every(owner=>state.board.some(cell=>cell?.owner===owner)),'Cada jogador deve conservar pelo menos uma carta no tabuleiro.');
   if(state.phase==='finalizada')demand((full&&state.endReason==='tabuleiro-cheio')||(!full&&empty&&state.endReason==='maos-vazias'),'Fim de partida inconsistente.');
   return true;
 }
@@ -60,9 +61,10 @@ export function checkMove(state,action) {
   demand(state.hands[state.current].includes(action.cardId),'Escolha uma carta da sua mão.');
   if(action.mode==='normal')return {ok:true,coverage:[],reason:'Colocação normal; compra uma carta do monte.'};
   demand(state.config.allowLastConversion||state.hands[state.current].length>1,'A última carta da mão não pode converter nesta partida.');
-  demand(!state.config.blockFirstConversion||state.moves[state.current]>0,'A primeira jogada deste jogador não permite conversão.');
+  demand(state.moves[state.current]>0,'A primeira jogada deste jogador não permite conversão.');
   const target=state.board[action.target];
   demand(Number.isInteger(action.target)&&target&&target.owner!==state.current,'Escolha uma carta adversária como alvo.');
+  demand(state.board.filter(cell=>cell?.owner===target.owner).length>1,'A última carta adversária no tabuleiro não pode ser convertida.');
   demand(adjacent(action.position,action.target,state.config.columns),'A carta nova precisa ser vizinha do alvo.');
   const colors=attributes(state,target.id,'color'),newColors=attributes(state,action.cardId,'color');
   demand(newColors.some(c=>colors.includes(c)),'A carta nova precisa cobrir uma das cores do alvo.');
