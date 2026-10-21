@@ -1,0 +1,10 @@
+import {createServer} from 'node:http';
+import {readFile} from 'node:fs/promises';
+import {resolve,sep} from 'node:path';
+import {fileURLToPath} from 'node:url';
+const base=fileURLToPath(new URL('.',import.meta.url)),port=Number(process.env.GEMAS_PORT||4188);
+const types={html:'text/html; charset=utf-8',mjs:'text/javascript; charset=utf-8',css:'text/css; charset=utf-8',svg:'image/svg+xml',ttf:'font/ttf',png:'image/png',json:'application/json'};
+createServer(async(req,res)=>{try{const path=resolve(base,'.'+(new URL(req.url,'http://localhost').pathname==='/'?'/index.html':decodeURIComponent(new URL(req.url,'http://localhost').pathname)));
+  if(!path.startsWith(base.endsWith(sep)?base:base+sep))throw Error();
+  const content=await readFile(path),type=types[path.split('.').at(-1)];if(!type)throw Error();res.writeHead(200,{'Content-Type':type,'Cache-Control':'no-store'});res.end(content);
+}catch{res.writeHead(404);res.end('Não encontrado.');}}).listen(port,'127.0.0.1',()=>console.log(`GEMAS: http://127.0.0.1:${port}`));

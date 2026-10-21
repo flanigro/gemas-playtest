@@ -1,0 +1,7 @@
+node_modules/
+.DS_Store
+reports/*.png
+reports/*.json
+!reports/validation.json
+!reports/simulation.json
+scripts/download-design-assets.py
