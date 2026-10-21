@@ -1,6 +1,7 @@
 import {writeFile} from 'node:fs/promises';
 import {newGame,dispatch,score,assertState} from '../src/engine.mjs';
 import {chooseAction,observeGame} from '../src/opponent.mjs';
+import {RULES_VERSION,GENERATOR_VERSION} from '../src/config.mjs';
 import {analyzeDeck} from '../src/generator.mjs';
 const games=[];
 for(const difficulty of ['beginner','experienced'])for(const columns of [4,6])for(const allowLastConversion of [false,true])for(let seed=0;seed<3;seed++){
@@ -14,6 +15,6 @@ for(const difficulty of ['beginner','experienced'])for(const columns of [4,6])fo
   games.push({seed:s.seed,difficulty,columns,colors,shapes,allowLastConversion,endReason:s.endReason,occupied:s.board.filter(Boolean).length,commands,conversions:s.history.filter(e=>e.type==='move'&&e.action.mode==='converter').length,passes:s.history.filter(e=>e.type==='pass').length,winner:points.winner,branco:points.branco.total,preto:points.preto.total,repeatedCards:balance.repeatedCards,repeatedGems:balance.repeatedGems,ms:Math.round(performance.now()-start)});
   console.log(`${difficulty} 4×${columns} ${colors}/${shapes} última:${allowLastConversion}: ${points.branco.total} × ${points.preto.total}, ${s.endReason}`);
 }
-const summary={games:games.length,stuck:0,endings:Object.fromEntries(['tabuleiro-cheio','maos-vazias'].map(reason=>[reason,games.filter(g=>g.endReason===reason).length])),wins:Object.fromEntries(['branco','preto','empate'].map(p=>[p,games.filter(g=>g.winner===p).length]))};
+const summary={rulesVersion:RULES_VERSION,generatorVersion:GENERATOR_VERSION,games:games.length,stuck:0,endings:Object.fromEntries(['tabuleiro-cheio','maos-vazias'].map(reason=>[reason,games.filter(g=>g.endReason===reason).length])),wins:Object.fromEntries(['branco','preto','empate'].map(p=>[p,games.filter(g=>g.winner===p).length]))};
 await writeFile(new URL('../reports/simulation.json',import.meta.url),JSON.stringify({note:'Amostra exploratória; não comprova equilíbrio de posse, paletas ou níveis. Experiente usa três candidatas e duas compras hipotéticas nesta execução.',summary,games},null,2));
 console.log(JSON.stringify(summary));
