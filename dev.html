@@ -1,2 +1,5 @@
 <!doctype html>
-<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f1f0ee"><title>GEMAS · Desenvolvimento</title><link rel="stylesheet" href="./src/styles.css"></head><body><main id="app"></main><script type="module" src="./src/ui.mjs"></script></body></html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f1f0ee"><title>GEMAS · Desenvolvimento</title><link rel="stylesheet" href="./src/styles.css"></head><body><main id="app"><p>Abrindo GEMAS… <a href="./index.html">Abrir o jogo</a></p></main><script>
+if(location.protocol==='file:')location.replace(new URL('./index.html',location.href));
+else{const entry=document.createElement('script');entry.type='module';entry.src='./src/ui.mjs';document.body.append(entry);}
+</script></body></html>
