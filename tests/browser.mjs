@@ -1,233 +1,391 @@
+// Fluxo real no navegador (Playwright): node tests/browser.mjs, com `npm start` rodando.
+// Confere a interface 1.0 contra o motor: nada aqui redefine regra, só compara a tela com o estado.
 import assert from 'node:assert/strict';
 import {writeFile,readFile} from 'node:fs/promises';
 const {chromium}=await import(process.env.GEMAS_PLAYWRIGHT_MODULE||'playwright');
 import {legalActions,score,dispatch} from '../src/engine.mjs';
 import {GameSession} from '../src/session.mjs';
 import {boardConnections,scoreTableData,conversionMoves} from '../src/game-view.mjs';
-const browser=await chromium.launch({headless:true,channel:'chrome'}),errors=[],failed=[],checks=[];
-const page=await browser.newPage({viewport:{width:768,height:1024}});
-page.on('pageerror',e=>errors.push(e.message));page.on('response',r=>{if(r.status()>=400)failed.push(r.url());});
-const state=()=>page.evaluate(()=>JSON.parse(localStorage.getItem('GEMAS-playtest-0.1')).state);
-const inject=async session=>{await page.evaluate(text=>localStorage.setItem('GEMAS-playtest-0.1',text),session.serialize());await page.reload();await page.getByRole('button',{name:'Retomar',exact:true}).click();};
-const checkLayout=async()=>{
-  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,'Horizontal page overflow');
-  const clipped=await page.locator('.game-card .gem').evaluateAll(gems=>gems.flatMap(g=>{
-    const b=g.getBoundingClientRect(),c=g.closest('.game-card').getBoundingClientRect();
-    return Math.abs(b.width-b.height)>1||b.top<c.top-1||b.bottom>c.bottom+1?[{gem:b.toJSON(),card:c.toJSON()}]:[];
-  }));
-  assert.deepEqual(clipped,[],'Each gem keeps a square atlas viewport and fits inside its card');
-  assert.deepEqual(await page.locator('.target-card-actions button,.on-card-actions button').evaluateAll(buttons=>buttons.filter(b=>b.scrollWidth>b.clientWidth+1).map(b=>b.textContent)),[],'On-card labels fit their buttons');
-};
-const screenshot=async options=>{await page.evaluate(()=>window.scrollTo(0,0));await page.evaluate(()=>new Promise(requestAnimationFrame));return page.screenshot(options);};
-try{
-  await page.goto('http://127.0.0.1:4188/dev.html');await page.evaluate(()=>document.fonts.ready);
-  for(const width of [768,390,320]){await page.setViewportSize({width,height:width===768?1024:844});await checkLayout();assert.equal(await page.locator('.palette-slot img').count(),16);
-    const images=await page.locator('.palette-slot img').evaluateAll(imgs=>imgs.map(i=>({loaded:i.complete&&i.naturalWidth>0,w:i.getBoundingClientRect().width,h:i.getBoundingClientRect().height})));
-    assert.ok(images.every(i=>i.loaded&&Math.abs(i.w-(width<=620?30:34))<.1&&Math.abs(i.h-i.w)<.1));
-    await screenshot({path:`reports/setup-${width}.png`,fullPage:true});
-  }
-  checks.push('Setup 768/390/320px, exact 16 Figma SVG slots and local fonts, no horizontal overflow.');
-  await page.setViewportSize({width:768,height:1024});await page.locator('[data-columns="6"]').click();
-  assert.match(await page.locator('.deck-summary').innerText(),/32 cartas/);assert.match(await page.locator('.deck-summary').innerText(),/64 gemas/);assert.doesNotMatch(await page.locator('.deck-summary').innerText(),/Nenhuma gema se repete/);
-  await page.getByRole('button',{name:'Diminuir cores'}).click();assert.equal(await page.getByLabel('Quantidade de formas').innerText(),'8');checks.push('Independent palette controls and accurate variable deck/repetition text.');
-  const previous=JSON.parse(new GameSession({seed:'old-save',config:{},players:{branco:'human',preto:'human'},difficulty:'beginner',theme:'marble'}).serialize());previous.rulesVersion=previous.state.rulesVersion='GEMAS-RULES-0.1';previous.state.config.blockFirstConversion=false;
-  const oldText=JSON.stringify(previous);await page.evaluate(text=>localStorage.setItem('GEMAS-playtest-0.1',text),oldText);await page.reload();
-  assert.equal(await page.getByRole('button',{name:'Retomar',exact:true}).count(),0);
-  const archivedDownload=page.waitForEvent('download');await page.getByRole('button',{name:'Exportar partida anterior',exact:true}).click();assert.equal(await readFile(await (await archivedDownload).path(),'utf8'),oldText);
-  await page.locator('[data-setting="opponent"][data-value="manual"]').click();await page.getByRole('button',{name:'Começar partida'}).click();
-  assert.equal(await page.evaluate(()=>localStorage.getItem('GEMAS-playtest-regras-anteriores')),oldText);assert.equal((await state()).rulesVersion,'GEMAS-RULES-0.2');
-  assert.equal(await page.locator('.test-controls').count(),1);assert.equal(await page.locator('.lab-panel').count(),0);
-  assert.equal(await page.locator('.player-dot,.owner-mark').count(),0);
-  const scoreBoxes=await page.locator('.player-score').evaluateAll(els=>els.map(el=>({owner:el.classList.contains('preto')?'preto':'branco',bg:getComputedStyle(el).backgroundColor,color:getComputedStyle(el).color})));
-  assert.deepEqual(scoreBoxes.map(s=>s.bg),['rgb(255, 255, 255)','rgb(41, 43, 47)']);assert.equal(scoreBoxes[1].color,'rgb(255, 255, 255)');
-  checks.push('Owner boxes use white/black backgrounds without dots; opening footer controls are visible with laboratory closed; old saves export unchanged and are archived before a new rules-0.2 game.');
-  // Real conversion flows: the final choice commits once, with no extra OK.
-  function fixture(multiple=false,columns=4){
-    const candidate=new GameSession({seed:'direct-conversion',config:{colors:2,shapes:2,opener:'branco',columns},players:{branco:'human',preto:'human'},difficulty:'beginner',theme:'marble'});
-    candidate.dispatch({type:'opening',firstOwner:'branco'});
-    for(let i=0;i<10;i++){
-      const actions=legalActions(candidate.state),moves=actions.filter(a=>a.mode==='converter');
-      const action=moves.find(a=>{const count=moves.filter(b=>b.cardId===a.cardId&&b.position===a.position).length;return multiple?count>1:count===1;});
-      if(action)return {session:candidate,action};
-      candidate.dispatch(actions.find(a=>a.mode==='normal'));
-    }
-    throw Error('Conversion fixture not found');
-  }
-  for(const choice of ['place','convert','armed-place','armed-convert']){
-    const {session:game,action:a}=fixture();await inject(game);const before=await state();
-    if(choice.startsWith('armed')){
-      const otherId=before.hands[before.current].find(id=>id!==a.cardId);
-      await page.locator(`[data-select="${otherId}"]`).click();await page.locator('[data-card-actions="hand"] [data-action="convert"]').click();
-    }
-    await page.locator(`[data-select="${a.cardId}"]`).dragTo(page.locator(`[data-cell="${a.position}"]`));
-    assert.deepEqual(await state(),before,'Dropping must only preview, including after a previous Converter selection');
-    assert.equal(await page.locator(`[data-cell="${a.position}"] .placement-preview [data-card="${a.cardId}"]`).count(),1);
-    assert.ok(await page.locator('[data-card-actions="board"] [data-action="play"]').isEnabled());
-    assert.ok(await page.locator(`[data-convert-target="${a.target}"]`).isEnabled());
-    await page.setViewportSize({width:choice==='place'?1100:390,height:950});await checkLayout();
-    if(choice==='place')await screenshot({path:'reports/drag-choice-1100.png',fullPage:true});
-    if(choice==='convert')await screenshot({path:'reports/drag-choice-390.png',fullPage:true});
-    const convert=choice.endsWith('convert');
-    if(convert)await page.locator(`[data-convert-target="${a.target}"]`).click();else await page.locator('[data-card-actions="board"] [data-action="play"]').click();
-    assert.deepEqual(await state(),dispatch(before,convert?a:{type:'move',mode:'normal',cardId:a.cardId,position:a.position}),'Only the chosen branch commits');
-    const stored=await page.evaluate(()=>JSON.parse(localStorage.getItem('GEMAS-playtest-0.1')));assert.equal(stored.cursor,game.cursor+1);
-    const footer=page.locator('.test-controls');assert.equal(await page.locator('.lab-panel').count(),0);
-    await footer.getByRole('button',{name:'Desfazer',exact:true}).click();assert.deepEqual(await state(),before);
-    await footer.getByRole('button',{name:'Refazer',exact:true}).click();assert.deepEqual(await state(),dispatch(before,convert?a:{type:'move',mode:'normal',cardId:a.cardId,position:a.position}));
-    if(choice==='place'){
-      const current=await state(),download=page.waitForEvent('download');await footer.getByRole('button',{name:'Exportar partida',exact:true}).click();
-      const exported=await readFile(await (await download).path(),'utf8');assert.deepEqual(GameSession.load(exported).state,current);
-      const chooser=page.waitForEvent('filechooser');await footer.getByRole('button',{name:'Carregar partida',exact:true}).click();await (await chooser).setFiles({name:'GEMAS.json',mimeType:'application/json',buffer:Buffer.from(exported)});
-      await page.waitForFunction(()=>document.querySelector('.notice')?.textContent.includes('restaurada'));assert.deepEqual(await state(),current);
-      const oldChooser=page.waitForEvent('filechooser');await page.locator('.test-controls').getByRole('button',{name:'Carregar partida',exact:true}).click();await (await oldChooser).setFiles({name:'GEMAS-antiga.json',mimeType:'application/json',buffer:Buffer.from(oldText)});
-      await page.waitForFunction(()=>document.querySelector('.notice.error')?.textContent.includes('regras anteriores'));assert.deepEqual(await state(),current);
-    }
+import {boardLayout} from '../src/layout.mjs';
+import {TUTORIAL} from '../src/tutorial.mjs';
 
+const BASE='http://127.0.0.1:4188/dev.html',KEY='GEMAS-playtest-0.1',PREFS='GEMAS-preferences-0.1',ARCHIVE='GEMAS-playtest-regras-anteriores';
+const browser=await chromium.launch({headless:true,channel:process.env.GEMAS_PLAYWRIGHT_CHANNEL||'chrome'}).catch(()=>chromium.launch({headless:true}));
+const errors=[],failed=[],checks=[];
+async function open({width=390,height=844,motion=false,url=BASE,init=null,touch=false}={}) {
+  const context=await browser.newContext({viewport:{width,height},reducedMotion:motion?'no-preference':'reduce',hasTouch:touch});
+  const page=await context.newPage();
+  page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
+  page.on('response',r=>{if(r.status()>=400)failed.push(r.url());});
+  if(init)await page.addInitScript(init);
+  await page.goto(url);await page.evaluate(()=>document.fonts.ready);
+  return page;
+}
+const saved=page=>page.evaluate(key=>JSON.parse(localStorage.getItem(key)),KEY);
+const state=async page=>(await saved(page)).state;
+const live=async page=>{await page.waitForFunction(()=>document.querySelector('#live').textContent.length>0);return page.locator('#live').textContent();};
+const cell=(page,i)=>page.locator(`[data-cell="${i}"]`);
+const hand=(page,id)=>page.locator(`[data-hand="${id}"]`);
+async function inject(page,session) {
+  await page.evaluate(([key,text])=>localStorage.setItem(key,text),[KEY,session.serialize()]);
+  await page.reload();await page.evaluate(()=>document.fonts.ready);
+  await page.getByRole('button',{name:'Continuar partida'}).click();
+}
+async function play(page,action) {
+  if(action.type==='opening'){const s=await state(page),k=action.firstOwner===s.current?0:1;await cell(page,s.config.positions[k]).click();await cell(page,s.config.positions[k]).click();return;}
+  await hand(page,action.cardId).click();await cell(page,action.position).click();
+  await cell(page,action.mode==='converter'?action.target:action.position).click();
+}
+const waitHuman=page=>page.waitForFunction(key=>{const s=JSON.parse(localStorage.getItem(key));return s.state.phase==='finalizada'||s.setup.players[s.state.current]==='human';},KEY,{timeout:90000});
+const waitEnd=page=>page.waitForFunction(key=>JSON.parse(localStorage.getItem(key)).state.phase==='finalizada',KEY,{timeout:120000});
+// A session advanced with the engine until `predicate` holds, to start UI checks from a known position.
+function sessionUntil(setup,predicate) {
+  const session=new GameSession(setup);
+  while(session.state.phase!=='finalizada'&&!predicate(session.state)){const actions=legalActions(session.state);session.dispatch(actions.find(a=>a.mode==='normal')||actions[0]);}
+  assert.notEqual(session.state.phase,'finalizada','posição de teste não encontrada');
+  return session;
+}
+const manual={players:{branco:'human',preto:'human'},difficulty:'beginner'};
+const hasConversion=s=>s.phase==='jogando'&&legalActions(s).some(a=>a.mode==='converter');
+
+// Partida em tela fixa: sem rolagem, nada fora da tela, alvos ≥ 44 px, texto ≥ 14 px, gemas inteiras.
+async function checkScreen(page,label,{targets=true}={}) {
+  const report=await page.evaluate(()=>{
+    const visible=el=>{const r=el.getBoundingClientRect();return r.width>0&&r.height>0&&getComputedStyle(el).visibility!=='hidden';};
+    const dialog=document.querySelector('.dialog'),scope=dialog||document.querySelector('#app');
+    const small=[...scope.querySelectorAll('button,input[role=switch],summary')].filter(visible).map(el=>({k:el.dataset.k||el.id||el.textContent.trim().slice(0,20),r:el.getBoundingClientRect()})).filter(x=>x.r.width<43.5||x.r.height<43.5).map(x=>`${x.k} ${Math.round(x.r.width)}×${Math.round(x.r.height)}`);
+    const tiny=new Set(),walker=document.createTreeWalker(scope,NodeFilter.SHOW_TEXT);
+    for(let node=walker.nextNode();node;node=walker.nextNode()){const el=node.parentElement;if(!node.textContent.trim()||!visible(el)||el.closest('.sr-only'))continue;const size=parseFloat(getComputedStyle(el).fontSize);if(size<14)tiny.add(`${node.textContent.trim().slice(0,24)} ${size}px`);}
+    const clipped=[...document.querySelectorAll('.card .gem')].filter(visible).filter(g=>{const b=g.getBoundingClientRect(),c=g.closest('.card').getBoundingClientRect();return Math.abs(b.width-b.height)>1||b.left<c.left-1||b.right>c.right+1||b.top<c.top-1||b.bottom>c.bottom+1;}).length;
+    const game=document.querySelector('.game'),outside=game?[...game.querySelectorAll('.topbar,.scores,.opp,.tray,.status,.coach,.hand,.hcard')].filter(visible).filter(el=>{const r=el.getBoundingClientRect();return r.left<-1||r.top<-1||r.right>innerWidth+1||r.bottom>innerHeight+1;}).map(el=>el.className):[];
+    const cut=[...document.querySelectorAll('.chip,.score .sname span,.ghost,.primary,.secondary')].filter(visible).filter(el=>el.scrollWidth>el.clientWidth+1).map(el=>el.textContent);
+    return {small,tiny:[...tiny],clipped,outside,cut,game:Boolean(game),scrollX:document.documentElement.scrollWidth>innerWidth+1,scrollY:document.documentElement.scrollHeight>innerHeight+1,body:getComputedStyle(document.body).overflow};
+  });
+  assert.equal(report.scrollX,false,`${label}: rolagem horizontal`);
+  if(report.game){assert.equal(report.scrollY,false,`${label}: a partida não rola`);assert.equal(report.body,'hidden',label);assert.deepEqual(report.outside,[],`${label}: tudo dentro da tela`);}
+  if(targets)assert.deepEqual(report.small,[],`${label}: alvos de toque com 44 px ou mais`);
+  assert.deepEqual(report.tiny,[],`${label}: texto com 14 px ou mais`);
+  assert.equal(report.clipped,0,`${label}: gemas quadradas e dentro da carta`);
+  assert.deepEqual(report.cut,[],`${label}: rótulos sem corte`);
+}
+const shot=(page,name,options={})=>page.screenshot({path:`reports/${name}.png`,...options});
+
+try{
+  /* 1. Abertura do app, nova partida e salvamentos antigos */
+  let page=await open();
+  assert.deepEqual(await page.locator('.home-actions button').allTextContents(),['Nova partida','Aprender a jogar','Regras']);
+  assert.match(await page.locator('.home-actions .primary').textContent(),/Aprender a jogar/,'no primeiro acesso o tutorial é a ação principal');
+  for(const [width,height] of [[320,568],[360,780],[390,844],[768,1024],[1280,800]]){await page.setViewportSize({width,height});await checkScreen(page,`início ${width}`);}
+  await page.setViewportSize({width:390,height:844});await shot(page,'inicio-390');
+  await page.getByRole('button',{name:'Regras'}).click();
+  assert.equal(await page.locator('.dialog').getAttribute('aria-modal'),'true');assert.match(await page.locator('.dialog-body').textContent(),/primeira jogada de cada jogador não pode converter/);
+  await checkScreen(page,'regras');await page.keyboard.press('Escape');assert.equal(await page.locator('.dialog').count(),0);
+  assert.equal(await page.evaluate(()=>document.activeElement?.dataset.k),'rules','o foco volta a quem abriu a folha');
+  await page.getByRole('button',{name:'Nova partida'}).click();
+  for(const [width,height] of [[320,568],[390,844],[768,1024]]){
+    await page.setViewportSize({width,height});await checkScreen(page,`nova partida ${width}`);
+    await page.waitForFunction(()=>[...document.querySelectorAll('.palette-slot img')].every(i=>i.complete&&i.naturalWidth>0));
+    const images=await page.locator('.palette-slot img').evaluateAll(list=>list.map(i=>i.complete&&i.naturalWidth>0&&Math.abs(i.getBoundingClientRect().width-i.getBoundingClientRect().height)<.1));
+    assert.equal(images.length,16);assert.ok(images.every(Boolean),'16 símbolos do Figma carregados');
+    await shot(page,`nova-partida-${width}`,{fullPage:true});
   }
-  checks.push('Native drag-and-drop preserves state, hand, deck and turn until on-card OK or target Converter; both branches work even after a previous conversion mode; footer undo/redo, save/load roundtrip and refusal of legacy imports work without laboratory.');
-  await page.setViewportSize({width:768,height:1024});
-  for(const path of ['table','bar-unique','bar-selected','bar-multiple','target-before-cell','hand-before-cell','table-six']){
-    const {session:game,action:a}=fixture(path==='bar-multiple',path==='table-six'?6:4);await inject(game);
-    const before=await state();assert.equal(await page.locator('#score-panel').getAttribute('open'),null);
-    assert.equal(await page.locator('.score-table-body').isVisible(),false);
-    const expectedHand=before.hands[before.current].filter(id=>conversionMoves(before,id).length).sort((a,b)=>a-b);
-    const hintedHand=await page.locator('.current-hand .hand-card.can-convert').evaluateAll(els=>els.map(e=>Number(e.dataset.select)).sort((a,b)=>a-b));assert.deepEqual(hintedHand,expectedHand);
-    await page.locator(`[data-select="${a.cardId}"]`).click();
-    const expectedTargets=[...new Set(conversionMoves(before,a.cardId).map(o=>o.target))].sort((a,b)=>a-b);
-    assert.deepEqual(await page.locator('.board-cell.convertible').evaluateAll(els=>els.map(e=>Number(e.dataset.cell)).sort((a,b)=>a-b)),expectedTargets);
-    if(path==='table'||path==='table-six'){
-      await page.locator('#help').uncheck();assert.equal(await page.locator('.can-convert,.board-cell.convertible').count(),0);await page.locator('#help').check();
-      await page.locator('#score-panel>summary').click();await page.waitForFunction(()=>document.querySelector('.score-toggle-label').textContent==='Recolher');
-      await page.locator(`[data-cell="${a.position}"]`).click();assert.notEqual(await page.locator('#score-panel').getAttribute('open'),null);
-      await page.locator('#score-panel>summary').click();await page.waitForFunction(()=>document.querySelector('.score-toggle-label').textContent==='Expandir');
-      await page.setViewportSize({width:path==='table'?1100:320,height:950});await checkLayout();
-      await screenshot({path:path==='table'?'reports/compact-conversion-1100.png':'reports/compact-conversion-6columns-320.png',fullPage:true});
-      const handBox=await page.locator('.current-hand .hand-cards').boundingBox(),barBox=await page.locator('.current-hand .action-bar').boundingBox();
-      if(path==='table')assert.ok(Math.abs(handBox.y-barBox.y)<2);
-      assert.ok(handBox.height<=92);
-      await page.locator(`[data-convert-target="${a.target}"]`).click();
-    }else if(path==='target-before-cell'){
-      await page.locator(`[data-convert-target="${a.target}"]`).click();assert.deepEqual(await state(),before);
-      assert.equal(await page.locator('.action-bar [data-action="play"]').count(),0);
-      await page.locator(`[data-cell="${a.position}"]`).click();
-    }else if(path==='hand-before-cell'){
-      await page.locator('[data-card-actions="hand"] [data-action="convert"]').click();assert.deepEqual(await state(),before);
-      await page.locator(`[data-convert-target="${a.target}"]`).click();
-      await page.locator(`[data-cell="${a.position}"]`).click();
-    }else{
-      await page.locator(`[data-cell="${a.position}"]`).click();
-      if(path==='bar-selected')await page.locator(`[data-cell="${a.target}"]`).click();
-      await page.locator('.action-bar [data-action="convert"]').click();
-      if(path==='bar-multiple'){assert.deepEqual(await state(),before);await page.locator(`[data-cell="${a.target}"]`).click();}
-    }
-    assert.equal((await state()).board[a.target].owner,before.current);
-    assert.deepEqual(await state(),game.dispatch(a),'Conversion must dispatch exactly one complete move');
-    assert.equal(await page.locator('#score-panel').getAttribute('open'),null);
+  await page.setViewportSize({width:390,height:844});
+  assert.ok(await page.evaluate(()=>document.fonts.check('16px Jost')&&document.fonts.check('16px Marcellus')),'fontes locais');
+  await page.locator('[data-count="colors"][data-delta="-1"]').click();await page.locator('[data-count="shapes"][data-delta="-1"]').click();await page.locator('[data-count="shapes"][data-delta="-1"]').click();
+  assert.deepEqual(await page.locator('.counter output').allTextContents(),['5','6'],'cores e formas independentes');
+  assert.equal(await page.locator('.palette-slot.off').count(),5);
+  await page.locator('[data-columns="6"]').click();assert.match(await page.locator('.deck-line').textContent(),/32\s*cartas/);
+  await page.locator('[data-columns="4"]').click();assert.match(await page.locator('.deck-line').textContent(),/24\s*cartas/);
+  assert.equal(await page.locator('#seed').count(),0,'laboratório escondido do jogador');
+  checks.push('Abertura do app, regras e nova partida em 320/360/390/768/1280 px: sem rolagem horizontal, alvos ≥ 44 px, texto ≥ 14 px, 16 símbolos do Figma, fontes locais, paleta independente e monte variável.');
+
+  const legacy=JSON.stringify({format:'GEMAS-SAVE',version:1,rulesVersion:'GEMAS-RULES-0.1',generatorVersion:'GEMAS-GENERATOR-1',setup:{},commands:[],notes:'antiga'});
+  await page.evaluate(([key,text])=>localStorage.setItem(key,text),[KEY,legacy]);await page.reload();
+  assert.equal(await page.getByRole('button',{name:'Continuar partida'}).count(),0,'salvamento de regras anteriores não é retomado');
+  assert.match(await page.locator('.notice').textContent(),/regras anteriores/);
+  const [oldFile]=await Promise.all([page.waitForEvent('download'),page.getByRole('button',{name:'Exportar partida anterior'}).click()]);
+  assert.equal(await readFile(await oldFile.path(),'utf8'),legacy);
+  await page.getByRole('button',{name:'Nova partida'}).click();await page.locator('[data-setting="opponent"][data-value="manual"]').click();await page.getByRole('button',{name:'Começar partida'}).click();
+  assert.equal(await page.evaluate(key=>localStorage.getItem(key),ARCHIVE),legacy,'partida antiga arquivada sem alteração');
+  assert.equal((await saved(page)).rulesVersion,'GEMAS-RULES-0.2');
+  checks.push('Salvamentos de regras anteriores: recusados, exportáveis sem alteração e arquivados antes da nova partida.');
+
+  /* 2. Partida em tela fixa, Layout A, nos formatos de referência */
+  const position=columns=>sessionUntil({seed:`TELA-${columns}`,config:{columns,colors:3,shapes:4},...manual},hasConversion);
+  for(const columns of [4,6])for(const [width,height] of [[390,844],[360,780],[390,664],[360,620],[768,1024],[844,390],[1280,800]]){
+    await page.setViewportSize({width,height});await inject(page,position(columns));
+    const s=await state(page),label=`partida ${columns===4?'4×4':'6×4'} em ${width}×${height}`,tall=!(width>=700&&width>height),layout=boardLayout(s.config,tall);
+    await checkScreen(page,label);
+    const action=legalActions(s).find(a=>a.mode==='converter');
+    await hand(page,action.cardId).click();await checkScreen(page,`${label}, carta escolhida`);
+    await cell(page,action.position).click();await checkScreen(page,`${label}, prévia`);
+    assert.equal(await page.locator('.chip').count(),1+conversionMoves(s,action.cardId,{position:action.position}).length);
+    // 6×4 é o 4×6 transposto: mesma casa do motor, linha e coluna trocadas na tela.
+    assert.deepEqual([layout.rows,layout.columns],columns===6&&tall?[6,4]:[4,columns]);
+    assert.equal(await page.locator('.board').getAttribute('aria-label'),`Tabuleiro de ${layout.rows} linhas e ${layout.columns} colunas`);
+    const boxes=await page.locator('.slot').evaluateAll(slots=>slots.map(slot=>{const r=slot.getBoundingClientRect();return {i:slot.dataset.slot===undefined?null:Number(slot.dataset.slot),x:Math.round(r.x),y:Math.round(r.y)};}));
+    const xs=[...new Set(boxes.map(b=>b.x))].sort((a,b)=>a-b),ys=[...new Set(boxes.map(b=>b.y))].sort((a,b)=>a-b);
+    assert.deepEqual([ys.length,xs.length],[layout.rows,layout.columns]);
+    for(const box of boxes){const place=layout.place(box.i);assert.deepEqual([ys.indexOf(box.y)+1,xs.indexOf(box.x)+1],[place.row,place.column],`${label}: casa ${box.i}`);}
+    assert.match(await cell(page,action.position).getAttribute('aria-label'),new RegExp(`na ${layout.label(action.position)}`));
+    if([390,360,844,1280].includes(width)&&height!==664)await shot(page,`partida-${columns===4?'4x4':'6x4'}-${width}x${height}`);
+    await page.locator('[data-action="menu"]').click();await page.locator('[data-k="m-home"]').click();
   }
-  await page.setViewportSize({width:768,height:1024});
-  checks.push('Conversion help marks legal hand cards and targets before choosing a cell; table/bar/hand conversion paths commit once without extra OK.');
-  const session=new GameSession({seed:'browser-conversion',config:{colors:2,shapes:2,allowLastConversion:true,opener:'branco'},players:{branco:'human',preto:'human'},difficulty:'beginner',theme:'marble'});
-  await inject(session);assert.equal(await page.locator('.hand-card').count(),8);await page.locator('[data-opening="preto"]').click();await page.getByRole('button',{name:'Confirmar abertura'}).click();
-  assert.equal(await page.locator('#chains').isChecked(),true);assert.equal(await page.locator('.connection-overlay line').count(),0);
-  assert.equal(await page.locator('.hand-card.can-convert').count(),0);
-  for(const owner of ['branco','preto']){assert.equal((await state()).current,owner);assert.equal((await state()).moves[owner],0);assert.equal(conversionMoves(await state(),(await state()).hands[owner][0]).length,0);if(owner==='branco'){const b=await state(),a=legalActions(b)[0];await page.locator(`[data-select="${a.cardId}"]`).click();await page.locator(`[data-cell="${a.position}"]`).click();assert.equal(await page.locator('[data-convert-target]').count(),0);await page.locator('[data-card-actions="board"] [data-action="play"]').click();}}
-  await inject(session);await page.locator('[data-opening="preto"]').click();await page.getByRole('button',{name:'Confirmar abertura'}).click();
-  await page.locator('#score-panel>summary').click();
-  let conversions=0,steps=0;
-  while((await state()).phase!=='finalizada'){
-    const before=await state(),actions=legalActions(before),a=actions.find(a=>a.mode==='converter')||actions[0];assert.ok(a);
-    const placement=await page.locator('.current-hand .action-bar').boundingBox(),board=await page.locator('.game-board').boundingBox();
-    assert.ok(placement.y+placement.height<board.y,'Actions must sit beside the active hand, above the board');
-    assert.equal(await page.locator('.current-hand').getAttribute('data-hand-owner'),before.current);
-    await page.locator(`[data-select="${a.cardId}"]`).click();
-    assert.equal(await page.locator('[data-card-actions="hand"] button').count(),2);
-    await page.locator(`[data-cell="${a.position}"]`).click();
-    assert.equal(await page.locator('[data-card-actions="board"] button').count(),2);
-    assert.equal(await page.locator('button button').count(),0,'Card controls must not be nested buttons');
-    assert.deepEqual(await state(),before,'Preview modified the saved state');
-    if(a.mode==='converter'){
-      if(conversions===1){await screenshot({path:'reports/on-card-controls.png',fullPage:true});}
-      await page.locator(`[data-convert-target="${a.target}"]`).click();conversions++;
-    }else await page.locator('[data-card-actions="board"] [data-action="play"]').click();
-    const after=await state();assert.equal(after.board[a.position].id,a.cardId);if(a.mode==='converter')assert.deepEqual(after.cards,before.cards);assert.ok(++steps<=14);
-    for(const group of scoreTableData(after))for(const row of group.rows){
-      const tr=page.locator(`[data-score-kind="${group.kind}"] [data-score-owner="${row.owner}"]`);
-      for(const value of group.values)assert.equal(await tr.locator(`[data-score-value="${value}"]`).innerText(),String(row.points[value]||0));
-      assert.equal(await tr.locator('.score-subtotal').innerText(),String(row.total));
-    }
-    await page.waitForFunction(n=>document.querySelectorAll('.connection-overlay line').length===n,boardConnections(after).length);
-    if(steps===5){
-      assert.ok(await page.locator('.color-connection').count()>0);assert.ok(await page.locator('.shape-connection').count()>0);
-      await page.locator('#score-panel>summary').click();
-      for(const width of [768,390,320]){await page.setViewportSize({width,height:width===768?1100:844});await checkLayout();assert.ok((await page.locator('.current-hand .hand-card').first().boundingBox()).height<=(width===768?92:80));await screenshot({path:`reports/game-${width}.png`,fullPage:true});}
-      await page.locator('#score-panel>summary').click();
-      await page.locator('.score-table-body').scrollIntoViewIfNeeded();
-      const sticky=await page.locator('.score-strip').boundingBox();assert.ok(sticky.y>=0&&sticky.y<10,'General score stays visible during scroll');
-      await page.evaluate(()=>window.scrollTo(0,0));
-      await page.locator('#chains').uncheck();assert.equal(await page.locator('.connection-overlay line').count(),0);await page.locator('#chains').check();
+  checks.push('Partida em tela fixa (Layout A), 4×4 e 6×4, em 390×844, 360×780, 390×664, 360×620, 768×1024, 844×390 e 1280×800: sem rolagem, nada fora da tela, alvos ≥ 44 px, texto ≥ 14 px, gemas inteiras; 6×4 transposto só na apresentação.');
+
+  /* 3. Interação: confirmar na casa ou no alvo, arrastar, teclado */
+  await page.setViewportSize({width:390,height:844});
+  let session=position(4);await inject(page,session);
+  let before=await state(page),options=legalActions(before).filter(a=>a.mode==='converter'),action=options[0];
+  assert.equal(await page.locator('.badge').count(),before.hands[before.current].filter(id=>conversionMoves(before,id).length).length,'cartas que podem converter já vêm marcadas');
+  await cell(page,action.position).click();assert.match(await page.locator('.status p').textContent(),/primeiro numa carta/);assert.deepEqual(await state(page),before);
+  await hand(page,action.cardId).click();
+  const marked=await page.locator('.cell.conv').evaluateAll(list=>list.map(el=>Number(el.dataset.cell)).sort((a,b)=>a-b));
+  assert.deepEqual(marked,[...new Set(conversionMoves(before,action.cardId).map(o=>o.action.position))].sort((a,b)=>a-b),'casas que permitem converter');
+  assert.equal(await page.locator('.cell.ok').count(),before.board.filter(c=>!c).length);
+  await cell(page,action.position).click();
+  assert.deepEqual(await state(page),before,'a prévia não altera a partida');
+  assert.match(await cell(page,action.position).getAttribute('aria-label'),/^Confirmar: colocar/);
+  assert.match(await cell(page,action.target).getAttribute('aria-label'),/^Converter a carta/);
+  await page.getByRole('button',{name:'Cancelar'}).click();assert.equal(await page.locator('.chip').count(),0);assert.deepEqual(await state(page),before);
+  // Alvo primeiro: escolhe a carta adversária, depois a casa (ou a única casa possível já entra em prévia).
+  await hand(page,action.cardId).click();await cell(page,action.target).click();
+  const places=[...new Set(conversionMoves(before,action.cardId,{target:action.target}).map(o=>o.action.position))];
+  if(places.length>1){assert.equal(await page.locator('.chip').count(),0);await cell(page,action.position).click();}
+  assert.deepEqual(await state(page),before);await cell(page,action.target).click();
+  let after=await state(page);assert.deepEqual(after,JSON.parse(JSON.stringify(dispatch(before,action))),'conversão confirmada no alvo, uma única vez');
+  assert.match(await live(page),/converteu a carta/);assert.match(await live(page),/Placar: Branco \d+, Preto \d+\./);
+  assert.equal(await page.locator('.turned').count(),1);assert.equal(await page.locator('.cell.last').count(),1);
+  // Colocação simples: confirmar na própria casa; compra uma carta.
+  before=after;action=legalActions(before).find(a=>a.mode==='normal');await play(page,action);
+  after=await state(page);assert.deepEqual(after,JSON.parse(JSON.stringify(dispatch(before,action))));
+  // Motivo do motor quando a conversão não vale.
+  const blocked=sessionUntil({seed:'BLOQUEIO',config:{colors:3,shapes:4},...manual},s=>s.phase==='jogando');await inject(page,blocked);
+  before=await state(page);await hand(page,before.hands[before.current][0]).click();await cell(page,before.board.findIndex(c=>c&&c.owner!==before.current)).click();
+  assert.match(await page.locator('.status p').textContent(),/primeira jogada/i);assert.deepEqual(await state(page),before);
+  checks.push('Interação: cartas, casas e alvos de conversão marcados; prévia sem efeito; confirmação na casa (colocar) ou na carta adversária (converter), casa primeiro ou alvo primeiro; Cancelar; motivo do motor para jogada inválida.');
+
+  // Arrastar faz o mesmo que tocar carta e casa: solta em prévia, sem confirmar.
+  await page.getByRole('button',{name:'Cancelar'}).click();
+  const drop=legalActions(before).find(a=>a.mode==='normal'),from=await hand(page,drop.cardId).boundingBox(),to=await cell(page,drop.position).boundingBox();
+  await page.mouse.move(from.x+from.width/2,from.y+from.height/2);await page.mouse.down();
+  await page.mouse.move(from.x+from.width/2,from.y-30,{steps:4});assert.equal(await page.locator('.drag-ghost').count(),1);
+  await page.mouse.move(to.x+to.width/2,to.y+to.height/2,{steps:6});assert.equal(await cell(page,drop.position).evaluate(el=>el.classList.contains('drop-hover')),true);
+  await page.mouse.up();
+  assert.equal(await page.locator('.drag-ghost').count(),0);assert.deepEqual(await state(page),before,'soltar não confirma');
+  assert.match(await cell(page,drop.position).getAttribute('aria-label'),/^Confirmar: colocar/);
+  await cell(page,drop.position).click();assert.deepEqual(await state(page),JSON.parse(JSON.stringify(dispatch(before,drop))));
+  const touchPage=await open({touch:true});await inject(touchPage,blocked);
+  assert.equal(await touchPage.locator('.hcard').first().evaluate(el=>getComputedStyle(el).touchAction),'none','arrasto por toque não vira rolagem');
+  await hand(touchPage,drop.cardId).tap();await cell(touchPage,drop.position).tap();await cell(touchPage,drop.position).tap();
+  assert.deepEqual(await state(touchPage),JSON.parse(JSON.stringify(dispatch(before,drop))),'toque: carta, casa, confirmar');await touchPage.context().close();
+  checks.push('Arrastar (ponteiro) equivale a tocar carta e casa: prévia sem efeito até confirmar; toque em tela sensível funciona.');
+
+  // Teclado: partida jogável sem mouse, com setas no tabuleiro e Escape.
+  before=await state(page);const keyed=legalActions(before).find(a=>a.mode==='normal');
+  await hand(page,keyed.cardId).focus();await page.keyboard.press('Enter');
+  assert.equal(await page.evaluate(()=>document.activeElement?.dataset.k),`hand-${keyed.cardId}`,'o foco sobrevive ao redesenho');
+  assert.notEqual(await page.evaluate(()=>getComputedStyle(document.activeElement).outlineStyle),'none','foco visível');
+  await page.keyboard.press('Escape');assert.equal(await page.locator('.hcard.sel').count(),0);await page.keyboard.press('Enter');
+  const empty=before.board.findIndex(c=>!c);await cell(page,empty).focus();await page.keyboard.press('ArrowRight');await page.keyboard.press('ArrowLeft');
+  assert.equal(await page.evaluate(()=>document.activeElement?.dataset.cell),String(empty));
+  await cell(page,keyed.position).focus();await page.keyboard.press('Enter');await page.keyboard.press('Enter');
+  assert.deepEqual(await state(page),JSON.parse(JSON.stringify(dispatch(before,keyed))));
+  checks.push('Teclado: jogada completa sem mouse, foco visível e preservado, setas no tabuleiro, Escape cancela.');
+
+  /* 4. Partida inteira a dois no 6×4 vertical, placar, ligações, menu, pontos, desfazer */
+  session=new GameSession({seed:'DOIS-6X4',config:{columns:6,colors:3,shapes:4},...manual});await inject(page,session);
+  let moves=0,conversions=0,engine=session.state;
+  while(engine.phase!=='finalizada'){
+    const list=legalActions(engine),next=list.find(a=>a.mode==='converter')||list[0];
+    await play(page,next);engine=dispatch(engine,next);moves++;if(next.mode==='converter')conversions++;
+    const now=await state(page);assert.deepEqual(now,JSON.parse(JSON.stringify(engine)),`jogada ${moves}`);
+    const points=score(engine);
+    assert.deepEqual(await page.locator('[data-score]').evaluateAll(list=>Object.fromEntries(list.map(el=>[el.dataset.score,Number(el.textContent)]))),{branco:points.branco.total,preto:points.preto.total});
+    assert.equal(await page.locator('.links line').count(),boardConnections(engine).length);
+    if(engine.phase==='jogando'){assert.equal(await page.locator('.hand .hcard').count(),engine.hands[engine.current].length,'a mão de baixo é de quem joga');assert.equal(await page.locator('.minis .mini').count(),engine.hands[engine.current==='branco'?'preto':'branco'].length);}
+    if(moves===12){
+      await checkScreen(page,'6×4 no meio da partida');await shot(page,'partida-6x4-meio');
+      await page.locator('[data-k="score-branco"]').click();
+      for(const group of scoreTableData(engine))for(const row of group.rows){
+        const cells=await page.locator(`[data-score-kind="${group.kind}"] [data-score-owner="${row.owner}"] td`).allTextContents();
+        assert.deepEqual(cells.map(Number),[...group.values.map(v=>row.points[v]||0),row.total]);
+      }
+      await checkScreen(page,'pontos por símbolo');await page.keyboard.press('Escape');
+      await page.locator('[data-action="menu"]').click();await checkScreen(page,'menu');
+      await page.locator('#opt-chains').uncheck({force:true});assert.equal(await page.locator('.links line').count(),0);
+      await page.locator('#opt-chains').check({force:true});
+      await page.locator('#opt-points').check({force:true});await page.keyboard.press('Escape');
+      assert.equal(await page.locator('.card-points').count(),OWNERS_WITH_POINTS(points));
+      await page.locator('[data-action="menu"]').click();await page.locator('#opt-points').uncheck({force:true});
+      await page.locator('[data-k="m-rules"]').click();assert.equal(await page.locator('.dialog').getAttribute('data-modal'),'rules');await page.keyboard.press('Escape');
+      assert.deepEqual(await state(page),JSON.parse(JSON.stringify(engine)),'consultar regras e pontos não mexe na partida');
+      await page.locator('[data-action="toggle-opp"]').click();assert.equal(await page.locator('.minis').count(),0);await checkScreen(page,'mão adversária recolhida');
+      await page.locator('[data-action="toggle-opp"]').click();assert.equal(await page.locator('.minis').count(),1);
+      await page.locator('[data-action="undo"]').click();assert.equal((await saved(page)).cursor,moves-1);assert.match(await live(page),/Jogada desfeita/);await play(page,next);
     }
   }
-  assert.ok(conversions>0);assert.ok(['maos-vazias','tabuleiro-cheio'].includes((await state()).endReason));
-  await page.getByRole('button',{name:'Ver sequências'}).click();await page.locator('.dialog').waitFor();await checkLayout();await page.keyboard.press('Escape');
-  assert.equal(await page.locator('.lab-panel').count(),0);await page.locator('.test-controls').getByRole('button',{name:'Desfazer',exact:true}).click();assert.equal((await state()).phase,'jogando');await page.getByRole('button',{name:'Refazer',exact:true}).click();assert.equal((await state()).phase,'finalizada');
-  checks.push('Detail panel starts collapsed, preserves toggles during moves, and general score remains sticky; compact cards keep square gem viewports at 320/390/768/1100px, including six columns.');
-  checks.push(`Manual game: ${conversions} on-card conversions, on-card OK, preview, active-hand toolbar, per-symbol scores, default links and toggle, 768/390/320px, undo/redo.`);
+  assert.ok(conversions>=3);
+  await page.locator('.dialog[data-modal="result"]').waitFor();
+  const final=score(engine);
+  assert.equal(await page.locator('#dialog-title').textContent(),final.winner==='empate'?'Empate':`${final.winner==='branco'?'Branco':'Preto'} venceu`);
+  assert.deepEqual((await page.locator('.final-side strong').allTextContents()).map(Number),[final.branco.total,final.preto.total]);
+  assert.equal(await page.locator('.final-side.winner').count(),final.winner==='empate'?0:1);
+  await checkScreen(page,'resultado');await shot(page,'resultado-390');
+  await page.getByRole('button',{name:'Ver o tabuleiro'}).click();await checkScreen(page,'tabuleiro final');
+  assert.match(await page.locator('.status p').textContent(),/Partida encerrada/);
+  await page.getByRole('button',{name:'Resultado'}).click();await page.getByRole('button',{name:'Jogar de novo'}).click();
+  const again=await saved(page);assert.equal(again.state.phase,'abertura');assert.deepEqual(again.setup.config,session.setup.config);assert.notEqual(again.setup.seed,'DOIS-6X4');
+  checks.push(`Partida completa a dois no 6×4 vertical: ${moves} comandos, ${conversions} conversões, estado idêntico ao do motor a cada jogada, placar, ligações, pontos por símbolo, menu, regras durante a partida, mão adversária recolhível, desfazer, tela de resultado e revanche.`);
+
+  // Empate tem tela própria.
+  for(let n=1;;n++){const trial=new GameSession({seed:`EMPATE-${n}`,config:{colors:8,shapes:8},...manual});while(trial.state.phase!=='finalizada')trial.dispatch(legalActions(trial.state)[0]);if(score(trial.state).winner==='empate'){await inject(page,trial);break;}assert.ok(n<400,'sem empate para testar');}
+  await page.locator('.dialog[data-modal="result"]').waitFor();assert.equal(await page.locator('#dialog-title').textContent(),'Empate');assert.equal(await page.locator('.final-side.winner').count(),0);
+  assert.match(await live(page),/Partida retomada\. Fim da partida\. Empate/);
+  checks.push('Vitória e empate conferidos contra score() do motor na tela de resultado.');
+
+  /* 5. Modo playtest: escondido do jogador, mas completo */
+  await page.keyboard.press('Escape');await page.locator('[data-action="menu"]').click();
+  assert.equal(await page.locator('[data-action="save"]').count(),0);await page.locator('[data-k="m-home"]').click();
+  await page.getByRole('button',{name:/Modo playtest/}).click();await page.getByRole('button',{name:'Nova partida'}).click();
+  await page.locator('#seed').fill('LAB-1');await page.locator('#seed').dispatchEvent('change');
+  await page.locator('#mask').fill('0, 1, 2, 4, 5, 6, 8, 9, 10');await page.locator('#mask').dispatchEvent('change');
+  assert.match(await page.locator('.deck-line').textContent(),/17\s*cartas/);
+  await page.locator('[data-setting="opponent"][data-value="computer"]').click();await page.locator('[data-setting="opener"][data-value="branco"]').click();
+  await page.getByRole('button',{name:'Começar partida'}).click();await waitHuman(page);
+  assert.equal((await state(page)).seed,'LAB-1');assert.equal(await page.locator('.slot.void').count(),7);assert.equal(await page.locator('.card-id').count()>0,true);
+  let lab=await state(page);if(lab.phase==='abertura'){await play(page,{type:'opening',firstOwner:'branco'});await waitHuman(page);lab=await state(page);}
+  await play(page,legalActions(lab).find(a=>a.mode==='normal'));await waitHuman(page);
+  const cursor=(await saved(page)).cursor;
+  await page.locator('[data-action="menu"]').click();await checkScreen(page,'menu de playtest');
+  assert.match(await page.locator('.lab').textContent(),/Semente: LAB-1/);assert.equal(await page.locator('.lab details').count(),2,'última decisão do computador e histórico');
+  await page.locator('#notes').fill('anotação de playtest');
+  const [download]=await Promise.all([page.waitForEvent('download'),page.locator('[data-action="save"]').click()]);
+  const exported=await readFile(await download.path(),'utf8');assert.equal(JSON.parse(exported).notes,'anotação de playtest');
+  const [log]=await Promise.all([page.waitForEvent('download'),page.locator('[data-action="export-log"]').click()]);assert.equal(JSON.parse(await readFile(await log.path(),'utf8')).seed,'LAB-1');
+  await page.locator('[data-action="step-undo"]').click();assert.equal((await saved(page)).cursor,cursor-1);
+  assert.match(await page.locator('.lab').textContent(),/computador pausado/);
+  await page.locator('[data-action="redo"]').click();assert.equal((await saved(page)).cursor,cursor);
+  await page.locator('[data-action="manual"]').click();assert.deepEqual((await saved(page)).setup.players,{branco:'human',preto:'human'});
+  await page.locator('[data-action="menu"]').click().catch(()=>{});
+  await page.locator('#load-file').setInputFiles({name:'antiga.json',mimeType:'application/json',buffer:Buffer.from(legacy)});
+  await page.keyboard.press('Escape');assert.match(await live(page),/regras|versão|inválid|incompat/i,'importação de regras anteriores é recusada');
+  await page.locator('#load-file').setInputFiles({name:'partida.json',mimeType:'application/json',buffer:Buffer.from(exported)});
+  await page.waitForFunction(([key,n])=>JSON.parse(localStorage.getItem(key)).cursor===n&&JSON.parse(localStorage.getItem(key)).notes==='anotação de playtest',[KEY,cursor]);
+  await page.locator('[data-action="menu"]').click().catch(()=>{});await page.locator('[data-k="m-home"]').click();await page.getByRole('button',{name:/Modo playtest/}).click();
+  checks.push('Modo playtest escondido do jogador e completo: semente, máscara de casas, identificação das cartas, anotações, exportar/carregar partida, exportar histórico, desfazer/refazer um passo, pausa, controle manual e recusa de importações antigas.');
+
+  /* 6. Computador: Worker real, jogada anunciada e animada, desfazer */
+  await page.context().close();page=await open({motion:true});
+  await page.getByRole('button',{name:'Nova partida'}).click();await page.locator('[data-setting="opener"][data-value="preto"]').click();
+  await page.getByRole('button',{name:'Começar partida'}).click();
+  let game=await state(page);assert.equal(game.phase,'abertura');assert.equal(game.current,'branco');
+  await cell(page,game.config.positions[1]).click();assert.equal(await page.locator('.chip').count(),1);await cell(page,game.config.positions[1]).click();
+  assert.match(await live(page),/^Abertura\. /);
+  assert.equal(await page.locator('.hcard').first().getAttribute('aria-disabled'),'true','mão inerte na vez do computador');
+  assert.match(await page.locator('.score.active .turn').textContent(),/Pensando/);
+  await page.waitForFunction(key=>JSON.parse(localStorage.getItem(key)).state.history.some(e=>e.type==='move'),KEY,{timeout:30000});
+  assert.ok(await page.evaluate(()=>document.getAnimations().length>0),'a jogada do computador é animada');
+  await page.waitForFunction(()=>/O computador colocou .+ na linha \d, coluna \d\..*Placar: Você \d+, Computador \d+\. Sua vez\./.test(document.querySelector('#live').textContent));
+  assert.equal(await page.locator('#live').getAttribute('aria-live'),'polite');
+  assert.match(await page.locator('.status p').textContent(),/O computador jogou na linha \d, coluna \d\. Sua vez/);
+  await page.waitForTimeout(1600);game=await state(page);
+  const mine=legalActions(game).find(a=>a.mode==='normal');await hand(page,mine.cardId).click();await cell(page,mine.position).click();await cell(page,mine.position).click();
+  assert.ok(await page.evaluate(()=>document.getAnimations().length>0),'carta desliza da mão até a casa');
+  await waitHuman(page);await page.waitForTimeout(1700);
+  const count=(await saved(page)).cursor;await page.locator('[data-action="undo"]').click();
+  const undone=await saved(page);assert.equal(undone.cursor,count-2,'desfazer devolve a vez ao jogador');assert.equal(undone.setup.players[undone.state.current],'human');
+  await shot(page,'computador-390');
+  // Grupo que pontua: acende, mostra o ganho e o placar conta.
+  const scoring=new GameSession({seed:TUTORIAL.seed,config:TUTORIAL.config,...manual});
+  for(const step of TUTORIAL.steps.filter(s=>s.action).slice(0,4))scoring.dispatch(step.action);
+  await inject(page,scoring);const trio=TUTORIAL.steps.filter(s=>s.action)[4].action;await play(page,trio);
+  await page.locator('.gain').waitFor();assert.equal(await page.locator('.gain').textContent(),'+3');
+  await page.locator('.cell.glow').first().waitFor();assert.equal(await page.locator('.cell.glow').count(),3);
+  await page.waitForFunction(()=>document.querySelector('[data-score="branco"]').textContent==='3');
+  checks.push('Contra o computador (Worker real): abertura, jogada do computador animada e anunciada por aria-live com placar e vez, mão inerte fora da vez, desfazer devolve a vez; grupo que pontua acende, mostra +3 e o placar conta.');
+  await page.context().close();
+
+  // Reduzir movimento desliga todas as animações.
+  page=await open();await inject(page,scoring);await play(page,trio);
+  assert.equal(await page.evaluate(()=>document.getAnimations().length),0);assert.equal(await page.locator('.cell.glow').count(),0);
+  assert.equal(await page.locator('[data-score="branco"]').textContent(),'3');assert.equal(await page.locator('.gain').count(),1,'o ganho aparece parado');
+  checks.push('Reduzir movimento: nenhuma animação; o ganho e o placar aparecem de imediato.');
+
+  for(const [difficulty,columns] of [['beginner',4],['experienced',6]]){
+    const ai=new GameSession({seed:`IA-${difficulty}`,config:{columns,colors:4,shapes:5},players:{branco:'computer',preto:'computer'},difficulty});
+    await inject(page,ai);await waitEnd(page);await page.locator('.dialog[data-modal="result"]').waitFor();
+    const done=await saved(page);assert.equal(done.state.board.filter(Boolean).length+0>0,true);assert.ok(done.reports.filter(Boolean).length>=done.state.history.filter(e=>e.type!=='pass').length-1);
+    checks.push(`Worker real, ${difficulty==='beginner'?'Iniciante 4×4':'Experiente 4×6'}: partida completa, ${done.state.history.length} registros.`);
+    await page.keyboard.press('Escape');await page.locator('[data-action="menu"]').click();await page.locator('[data-k="m-home"]').click();
+  }
+  for(const human of ['branco','preto'])for(const difficulty of ['beginner','experienced']){
+    await page.evaluate(key=>localStorage.removeItem(key),KEY);await page.reload();
+    await page.getByRole('button',{name:'Nova partida'}).click();
+    await page.locator(`[data-setting="human"][data-value="${human}"]`).click();await page.locator(`[data-setting="difficulty"][data-value="${difficulty}"]`).click();
+    await page.locator('[data-setting="opener"][data-value="sorteio"]').click();await page.getByRole('button',{name:'Começar partida'}).click();
+    await waitHuman(page);let now=await state(page);
+    if(now.phase==='abertura'){await play(page,{type:'opening',firstOwner:human});await waitHuman(page);now=await state(page);}
+    assert.equal(now.current,human);await play(page,legalActions(now).find(a=>a.mode==='normal'));await waitHuman(page);
+    now=await state(page);assert.equal(now.current,human);assert.ok(now.history.filter(e=>e.type==='move').length>=2);
+    assert.equal(await page.locator('.score').first().locator('.dot').getAttribute('class'),`dot ${human}`,'o painel do jogador vem primeiro');
+  }
+  checks.push('Nova partida contra os dois níveis, com o jogador de Branco e de Preto: a vez volta depois de uma resposta legal.');
+
+  /* 7. Tutorial guiado */
+  await page.evaluate(key=>localStorage.removeItem(key),KEY);await page.reload();
+  await page.getByRole('button',{name:'Aprender a jogar'}).click();
+  const total=TUTORIAL.steps.length;let guard=0,wrong=false;
+  while(await page.locator('.coach').count()){
+    assert.ok(guard++<80,'tutorial travou');
+    const index=Number((await page.locator('.coach-step').textContent()).match(/passo (\d+)/)[1])-1,step=TUTORIAL.steps[index];
+    assert.equal((await page.locator('.coach p').nth(1).textContent()),step.text);
+    if(step.type==='info'){if(index===0)await checkScreen(page,'tutorial');await page.locator('[data-action="coach-next"]').click();continue;}
+    if(step.type==='computer'){await page.waitForFunction(n=>!document.querySelector('.coach-step')?.textContent.includes(`passo ${n} `),index+1,{timeout:15000});continue;}
+    if(!wrong&&step.action.type==='move'){wrong=true;await page.locator('.hcard.dim').first().click();assert.match(await page.locator('.coach .hint').textContent(),/destacad/);assert.equal(await page.locator('.hcard.sel').count(),0,'o tutorial só aceita o passo indicado');}
+    if(await page.locator('.hcard.guide').count()){await page.locator('.hcard.guide').click();continue;}
+    const guide=page.locator('.cell.guide');assert.ok(await guide.count()>0);
+    if(index===9&&await guide.count()===1)await shot(page,'tutorial-conversao');
+    await (await guide.count()>1&&step.action.position!==undefined?cell(page,step.action.position):guide.first()).click();
+  }
+  assert.equal(await page.evaluate(key=>localStorage.getItem(key),KEY),null,'o tutorial não ocupa o salvamento do jogador');
+  assert.equal(JSON.parse(await page.evaluate(key=>localStorage.getItem(key),PREFS)).view.tutorialDone,true);
+  assert.equal(await page.locator('[data-score="branco"]').textContent(),'8');
+  await page.waitForFunction(()=>/Sua vez/.test(document.querySelector('.status p')?.textContent||''),null,{timeout:20000});
+  await page.locator('[data-action="menu"]').click();await page.locator('[data-k="m-home"]').click();
+  assert.match(await page.locator('.home-actions .primary').textContent(),/Nova partida/,'depois do tutorial, Nova partida vira a ação principal');
+  checks.push(`Tutorial guiado: ${total} passos seguidos pela interface, só aceita o passo indicado, termina em 8 a 0 como o motor prevê, segue em partida livre contra o Iniciante e não ocupa o salvamento.`);
+  await page.context().close();
+
+  /* 8. Arquivo autônomo e alternativa sem Worker */
+  const requests=[];page=await open({url:new URL('../index.html',import.meta.url).href});page.on('request',r=>requests.push(r.url()));
+  assert.equal(await page.title(),'GEMAS');
+  assert.ok(await page.evaluate(()=>getComputedStyle(document.documentElement).getPropertyValue('--atlas').includes('data:image/svg+xml')&&document.fonts.check('16px Jost')&&document.fonts.check('16px Marcellus')));
+  await page.getByRole('button',{name:'Nova partida'}).click();
+  assert.ok((await page.locator('.palette-slot img').evaluateAll(list=>list.every(i=>i.src.startsWith('data:')&&i.complete&&i.naturalWidth>0))));
+  await page.locator('[data-setting="opener"][data-value="branco"]').click();await page.getByRole('button',{name:'Começar partida'}).click();
+  await waitHuman(page);let alone=await state(page);if(alone.phase==='abertura'){await play(page,{type:'opening',firstOwner:'branco'});await waitHuman(page);alone=await state(page);}
+  await play(page,legalActions(alone).find(a=>a.mode==='normal'));await waitHuman(page);
+  assert.ok((await state(page)).history.filter(e=>e.type==='move').length>=2,'Worker embutido responde no arquivo aberto direto');
+  assert.ok(await page.locator('.card .gem').first().evaluate(el=>getComputedStyle(el).backgroundImage.startsWith('url("data:image/svg+xml')));
+  await checkScreen(page,'arquivo autônomo');
+  assert.deepEqual(requests.filter(url=>/^https?:/.test(url)),[],'nenhum pedido de rede');
+  checks.push('Arquivo autônomo (index.html aberto direto): atlas, fontes e SVGs embutidos, Worker embutido responde, nenhum pedido de rede.');
+  await page.goto(new URL('../dev.html',import.meta.url).href);await page.waitForURL('**/index.html');await page.locator('.home').waitFor();
+  checks.push('Abrir dev.html direto redireciona para o index.html autônomo.');
+  await page.context().close();
+
+  page=await open({init:()=>{window.Worker=class{constructor(){throw new DOMException('Workers unavailable','SecurityError');}};}});
   for(const difficulty of ['beginner','experienced']){
-    const ai=new GameSession({seed:'browser-worker-'+difficulty,config:{colors:4,shapes:4,columns:difficulty==='experienced'?6:4},players:{branco:'computer',preto:'computer'},difficulty,theme:'rococo'});
-    await page.setViewportSize({width:1100,height:1000});await inject(ai);
-    await page.waitForFunction(()=>JSON.parse(localStorage.getItem('GEMAS-playtest-0.1')).state.phase==='finalizada',{},{timeout:60000});
-    const s=await state();assert.equal(s.board.filter(Boolean).length,s.config.active.length);assert.ok(Number.isFinite(score(s).branco.total));await screenshot({path:`reports/worker-${difficulty}.png`,fullPage:true});
-    await page.locator('.test-controls').getByRole('button',{name:'Desfazer',exact:true}).click();const reviewed=await state();const reviewCursor=await page.evaluate(()=>JSON.parse(localStorage.getItem('GEMAS-playtest-0.1')).cursor);await page.waitForTimeout(150);assert.deepEqual(await state(),reviewed);assert.ok(await page.locator('.test-controls').getByRole('button',{name:'Retomar computador',exact:true}).isVisible());await page.locator('.test-controls').getByRole('button',{name:'Refazer',exact:true}).click();assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('GEMAS-playtest-0.1')).cursor),reviewCursor+1);assert.deepEqual(await state(),s);
-    await page.locator('.test-controls').getByRole('button',{name:'Desfazer',exact:true}).click();
-    await page.locator('.test-controls').getByRole('button',{name:'Retomar computador',exact:true}).click();
-    await page.waitForFunction(()=>JSON.parse(localStorage.getItem('GEMAS-playtest-0.1')).state.phase==='finalizada',{},{timeout:60000});assert.deepEqual(await state(),s);
-    await page.locator('.test-controls').getByRole('button',{name:'Desfazer',exact:true}).click();const manualState=await state();
-    await page.locator('.test-controls').getByRole('button',{name:'Controle manual',exact:true}).click();assert.deepEqual(await state(),manualState);
-    assert.deepEqual(await page.evaluate(()=>JSON.parse(localStorage.getItem('GEMAS-playtest-0.1')).setup.players),{branco:'human',preto:'human'});
-    checks.push(`Real Worker ${difficulty}: complete ${s.config.rows}×${s.config.columns} game, ${s.history.length} history entries.`);
+    const ai=new GameSession({seed:`fallback-${difficulty}`,config:{colors:3,shapes:5},players:{branco:'computer',preto:'computer'},difficulty});
+    await inject(page,ai);await waitEnd(page);assert.equal(await page.locator('.status .hint').count(),0);
+    await page.locator('.dialog[data-modal="result"]').waitFor();await page.keyboard.press('Escape');await page.locator('[data-action="menu"]').click();await page.locator('[data-k="m-home"]').click();
   }
-  for(const difficulty of ['beginner','experienced'])for(const human of ['branco','preto']){
-    await page.goto('http://127.0.0.1:4188/dev.html');
-    await page.locator('[data-setting="opponent"][data-value="computer"]').click();
-    await page.locator(`[data-setting="difficulty"][data-value="${difficulty}"]`).click();
-    await page.locator(`[data-setting="human"][data-value="${human}"]`).click();
-    await page.getByRole('button',{name:'Começar partida'}).click();
-    await page.waitForFunction(owner=>{const s=JSON.parse(localStorage.getItem('GEMAS-playtest-0.1')).state;return s.current===owner;},human,{timeout:60000});
-    if((await state()).phase==='abertura'){await page.locator('.opening-option').first().click();await page.getByRole('button',{name:'Confirmar abertura'}).click();}
-    await page.waitForFunction(owner=>{const s=JSON.parse(localStorage.getItem('GEMAS-playtest-0.1')).state;return s.phase==='jogando'&&s.current===owner;},human,{timeout:60000});
-    const before=await state(),a=legalActions(before)[0];
-    await page.locator(`[data-select="${a.cardId}"]`).click();await page.locator(`[data-cell="${a.position}"]`).click();await page.locator('.action-bar [data-action="play"]').click();
-    await page.waitForFunction(turn=>{const s=JSON.parse(localStorage.getItem('GEMAS-playtest-0.1')).state;return s.turn>=turn+2;},before.turn,{timeout:60000});
-    assert.equal((await state()).current,human);assert.equal(await page.locator('.notice.error').count(),0);
-    await page.setViewportSize({width:320,height:844});await checkLayout();
-    if(difficulty==='experienced'&&human==='preto')await screenshot({path:'reports/game-variable-palette-320.png',fullPage:true});
-  }
-  checks.push('New game UI starts both computer levels for human Branco and Preto and returns the turn after a legal reply.');
-  // The standalone is opened without a server and receives its own file-origin storage.
-  await page.goto(new URL('../ABRIR_GEMAS.html',import.meta.url).href);await page.locator('.setup-header').waitFor();await page.evaluate(()=>document.fonts.ready);await checkLayout();
-  await page.locator('[data-setting="opponent"][data-value="manual"]').click();await page.getByRole('button',{name:'Começar partida'}).click();await page.locator('.opening-option').first().click();await page.getByRole('button',{name:'Confirmar abertura'}).click();assert.equal(await page.locator('.board-cell').count(),16);
-  checks.push('Standalone file opens without server, with embedded SVGs and fonts.');
-  const offline=new GameSession({seed:'offline-worker',config:{colors:3,shapes:5},players:{branco:'computer',preto:'computer'},difficulty:'beginner',theme:'marble'});await inject(offline);
-  await page.waitForFunction(()=>JSON.parse(localStorage.getItem('GEMAS-playtest-0.1')).state.phase==='finalizada',{},{timeout:30000});
-  checks.push('Standalone embedded Blob Worker completes a game without imports or server.');
-  await page.goto(new URL('../index.html',import.meta.url).href);await page.locator('.setup-header').waitFor();
-  await page.locator('[data-setting="opponent"][data-value="manual"]').click();await page.getByRole('button',{name:'Começar partida'}).click();await page.locator('.opening-option').first().click();await page.getByRole('button',{name:'Confirmar abertura'}).click();
-  assert.equal(await page.locator('.board-cell').count(),16);
-  checks.push('Direct file index.html starts a game without CORS errors.');
-  await page.goto(new URL('../dev.html',import.meta.url).href);await page.waitForURL('**/index.html');await page.locator('.setup-header').waitFor();
-  checks.push('Opening dev.html directly redirects to the standalone index.html in Chrome.');
-  // Simulate browsers that deny background workers, including during opening.
-  const fallback=await browser.newPage();const fallbackErrors=[];fallback.on('pageerror',e=>fallbackErrors.push(e.message));
-  await fallback.addInitScript(()=>{window.Worker=class{constructor(){throw new DOMException('Workers unavailable','SecurityError');}};});
-  await fallback.goto('http://127.0.0.1:4188/dev.html');
-  for(const difficulty of ['beginner','experienced']){
-    const ai=new GameSession({seed:'fallback-'+difficulty,config:{colors:3,shapes:5},players:{branco:'computer',preto:'computer'},difficulty,theme:'marble'});
-    await fallback.evaluate(text=>localStorage.setItem('GEMAS-playtest-0.1',text),ai.serialize());await fallback.reload();await fallback.getByRole('button',{name:'Retomar',exact:true}).click();
-    await fallback.waitForFunction(()=>JSON.parse(localStorage.getItem('GEMAS-playtest-0.1')).state.phase==='finalizada',{},{timeout:60000});
-    assert.equal(await fallback.locator('.notice.error').count(),0);
-  }
-  assert.deepEqual(fallbackErrors,[]);await fallback.close();
-  checks.push('Both computer levels complete opening and game even when the browser denies Workers.');
+  checks.push('Os dois níveis completam abertura e partida mesmo quando o navegador nega Workers.');
+  await page.context().close();
+
   assert.deepEqual(errors,[]);assert.deepEqual(failed,[]);
-  await writeFile(new URL('../reports/validation.json',import.meta.url),JSON.stringify({status:'passed',checks,errors,failed},null,2));console.log(checks.join('\n'));
+  await writeFile(new URL('../reports/validation.json',import.meta.url),JSON.stringify({status:'passed',version:'1.0.0',checks,errors,failed},null,2)+'\n');
+  console.log(checks.join('\n'));
 }finally{await browser.close();}
+function OWNERS_WITH_POINTS(points){return ['branco','preto'].reduce((sum,owner)=>sum+points[owner].perCard.filter(c=>c.points>0).length,0);}

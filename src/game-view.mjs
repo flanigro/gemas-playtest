@@ -34,3 +34,18 @@ export function conversionMoves(state,cardId,{position=null,target=null}={}) {
   const positions=position===null?state.config.active.filter(i=>!state.board[i]):state.config.active.includes(position)&&!state.board[position]?[position]:[];
   return positions.flatMap(p=>conversionOptions(state,cardId,p)).filter(option=>target===null||option.target===target);
 }
+
+// What the last command changed, for animations and screen-reader announcements.
+// Derived only from two consecutive states; it never decides anything about the rules.
+export function moveSummary(previous,next) {
+  const added=next.history.slice(previous.history.length),entry=added.find(e=>e.type!=='pass');
+  if(!entry)return null;
+  const before=score(previous),after=score(next),owner=entry.owner,rival=OWNERS.find(p=>p!==owner);
+  const totals=points=>Object.fromEntries(OWNERS.map(p=>[p,points[p].total]));
+  const base={type:entry.type,owner,before:totals(before),after:totals(after),passed:added.find(e=>e.type==='pass')?.owner??null,finished:next.phase==='finalizada',winner:after.winner};
+  if(entry.type==='opening')return {...base,positions:[...entry.positions],firstOwner:entry.firstOwner,gain:0,loss:0,glow:[],converted:null,drew:null};
+  const position=entry.action.position,converted=entry.action.mode==='converter'?entry.action.target:null,touched=[position,...(converted===null?[]:[converted])];
+  const glow=[...new Set(after[owner].chains.filter(chain=>chain.positions.some(p=>touched.includes(p))).flatMap(chain=>chain.positions))].sort((a,b)=>a-b);
+  const drew=converted===null?next.hands[owner].find(id=>!previous.hands[owner].includes(id))??null:null;
+  return {...base,position,cardId:entry.action.cardId,converted,drew,gain:after[owner].total-before[owner].total,loss:before[rival].total-after[rival].total,glow};
+}
