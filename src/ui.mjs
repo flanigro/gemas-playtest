@@ -163,7 +163,7 @@ function shortMove(m){
   if(!m||m.type!=='move')return '';
   if(againstComputer()&&session.setup.players[m.owner]==='human')return '';
   const layout=currentLayout(),who=againstComputer()?'O computador':ownerName(m.owner);
-  return `${who} jogou na ${layout.label(m.position)}${m.converted!==null?` e converteu a carta da ${layout.label(m.converted)}`:''}. `;
+  return m.converted!==null?`${who} converteu a carta da ${layout.label(m.converted)}. `:`${who} jogou na ${layout.label(m.position)}. `;
 }
 function statusModel(){
   const s=session.state,two=!againstComputer();
@@ -172,18 +172,18 @@ function statusModel(){
   if(s.phase==='abertura'){
     if(isComputer())return {text:'Abertura: o computador escolhe qual carta do centro fica com ele.'};
     const chooser=two?`${ownerName(s.current)} escolhe`:'escolha';
-    return openingChoice?{text:'Toque de novo na carta para confirmar. A outra fica com o adversário.',cancel:true}:{text:`Abertura: ${chooser} a carta do centro que será sua. A outra fica com o adversário.`};
+    return openingChoice?{text:'Toque de novo na carta para confirmar.',cancel:true}:{text:`Abertura: ${chooser} a carta do centro que será sua. A outra fica com o adversário.`};
   }
   if(isComputer())return paused?{text:'Computador pausado.',button:['pause','Retomar']}:{text:`${shortMove(lastSummary())}O computador está pensando…`};
   const turn=two?`Vez do ${ownerName(s.current)}`:'Sua vez';
-  if(selection.cardId===null)return {text:`${shortMove(lastSummary())}${turn}: toque numa carta da mão.`};
+  if(selection.cardId===null)return {text:`${shortMove(lastSummary())}${turn}: toque numa carta.`};
   if(selection.position===null){
-    if(selection.target!==null)return {text:'Toque numa casa marcada com setas para converter essa carta.',cancel:true};
+    if(selection.target!==null)return {text:'Escolha uma casa marcada com setas.',cancel:true};
     const any=view.help&&conversionMoves(s,selection.cardId).length>0;
-    return {text:any?'Toque numa casa. As marcadas com setas permitem converter.':'Toque numa casa livre.',cancel:true};
+    return {text:any?'Escolha uma casa. As com setas permitem converter.':'Escolha uma casa livre.',cancel:true};
   }
   const targets=conversionMoves(s,selection.cardId,{position:selection.position}).length>0;
-  return {text:targets?'Para converter, toque na carta adversária marcada. Para só colocar, toque de novo na casa.':'Toque de novo na casa para confirmar.',cancel:true};
+  return {text:targets?'Converta na carta marcada ou confirme na casa.':'Toque de novo na casa para confirmar.',cancel:true};
 }
 
 /* ---------- Peças visuais ---------- */
@@ -482,7 +482,7 @@ function tapCell(i,dropped=false){
     if(selection.target!==null&&!conversionMoves(s,cardId,{position:i,target:selection.target}).length)selection.target=null;
     notice='';render();return;
   }
-  if(cell.owner===s.current){showNotice('Essa carta já é sua. Escolha uma casa livre ou uma carta adversária.');return;}
+  if(cell.owner===s.current){showNotice('Essa carta já é sua. Escolha uma casa livre.');return;}
   const options=conversionMoves(s,cardId,{target:i});
   if(!options.length){showNotice(whyNot(i));return;}
   if(!dropped&&selection.position!==null&&options.some(o=>o.action.position===selection.position)){commit({type:'move',mode:'converter',cardId,position:selection.position,target:i});return;}
@@ -578,7 +578,7 @@ window.addEventListener('pointerup',event=>{
   if(!drag||event.pointerId!==drag.pointer)return;
   const dragging=Boolean(drag.ghost);endDrag();
   if(!dragging)return;
-  suppressClick=true;setTimeout(()=>{suppressClick=false;},60);
+  suppressClick=true;setTimeout(()=>{suppressClick=false;},0);
   const cell=document.elementFromPoint(event.clientX,event.clientY)?.closest?.('[data-cell]');
   if(cell)tapCell(Number(cell.dataset.cell),true);
 });

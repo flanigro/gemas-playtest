@@ -135,6 +135,7 @@ button:disabled{cursor:default}
 .game.wide .side{width:clamp(176px,22vw,290px);justify-content:flex-start}
 .game.wide .side-b{justify-content:flex-end}
 .game.wide .scores{flex-direction:column}
+.game.wide .score{flex:none}
 .game.wide .opp{flex-direction:column;align-items:flex-start;gap:4px}
 .game.wide .opp-cards{width:100%;justify-content:space-between}
 .game.wide .status{flex-direction:column;align-items:flex-start;justify-content:flex-end;flex:1}
@@ -166,8 +167,8 @@ button:disabled{cursor:default}
 .tagline{font-size:18px;max-width:22em}
 .home-actions{display:flex;flex-direction:column;gap:12px;width:min(100%,340px)}
 .home-foot{font-size:14px;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:2px}
-.page-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
-.page-head h1{font-family:var(--display);font-weight:400;font-size:27px;letter-spacing:.03em;line-height:1.15;white-space:nowrap}
+.page-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.page-head h1{font-family:var(--display);font-weight:400;font-size:clamp(20px,6.4vw,27px);letter-spacing:.02em;line-height:1.15;white-space:nowrap;min-width:0}
 .setup-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:16px;align-items:start}
 .panel{display:flex;flex-direction:column;gap:12px;padding:16px;border-radius:14px;background:var(--panel);border:1px solid var(--panel-line)}
 .panel h2{font-size:14px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
@@ -195,7 +196,7 @@ button:disabled{cursor:default}
 .switch-row{display:flex;align-items:center;gap:14px;min-height:48px;cursor:pointer;position:relative}
 .switch-row>span:first-child{flex:1;font-size:16px;font-weight:500;min-width:0}
 .switch-row small{display:block;font-size:14px;font-weight:400;color:var(--muted);margin-top:2px}
-.switch-row input{position:absolute;opacity:0;width:52px;height:32px;right:0;top:50%;margin:-16px 0 0;cursor:pointer}
+.switch-row input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
 .switch{width:52px;height:32px;border-radius:16px;flex:none;background:#8d877b;position:relative;transition:background .15s}
 .switch::after{content:'';position:absolute;left:3px;top:3px;width:26px;height:26px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .15s}
 input:checked+.switch{background:var(--velvet)}
@@ -251,7 +252,7 @@ table.symbols td.sum{font-weight:700}
 .dialog-actions{display:flex;flex-direction:column;gap:10px;margin-top:4px}
 .lab{display:flex;flex-direction:column;gap:10px;font-size:15px}
 .lab details{padding:8px 12px;border-radius:10px;border:1px solid var(--panel-line);background:#fff}
-.lab summary{min-height:32px;cursor:pointer;font-weight:500}
+.lab summary{padding:11px 0;cursor:pointer;font-weight:500}
 .lab ol{font-size:14px}
 .eyebrow{font-size:14px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--gold-ink)}
 
@@ -270,4 +271,16 @@ table.symbols td.sum{font-weight:700}
   @keyframes enter{from{opacity:0;transform:scale(.86)}to{opacity:1;transform:none}}
   @keyframes fade{from{opacity:0}to{opacity:1}}
   @keyframes sheet{from{transform:translateY(24px);opacity:.4}to{transform:none;opacity:1}}
+}
+/* Navegador de celular com barras visíveis: sobra menos altura que a da tela */
+@media(max-height:640px){
+  .game.tall{gap:5px;padding-top:max(6px,env(safe-area-inset-top));padding-bottom:max(8px,env(safe-area-inset-bottom))}
+  .game.tall .score{height:46px}
+  .game.tall .opp{min-height:44px}
+  .game.tall .mini{width:30px;height:40px}
+  .game.tall .minis{--g:15px}
+  .game.tall .hand{height:76px}
+  .game.tall .hcard{height:72px;--g:26px;--gg:3px}
+  .game.tall .hcard.sel{transform:translateY(-4px)}
+  .game.tall .coach{min-height:0}
 }
