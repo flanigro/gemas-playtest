@@ -33,7 +33,7 @@
       "preto": 32,
       "repeatedCards": 22,
       "repeatedGems": 44,
-      "ms": 90
+      "ms": 158
     },
     {
       "seed": "GEMAS-SIM-1",
@@ -52,7 +52,7 @@
       "preto": 20,
       "repeatedCards": 0,
       "repeatedGems": 28,
-      "ms": 71
+      "ms": 101
     },
     {
       "seed": "GEMAS-SIM-2",
@@ -71,7 +71,7 @@
       "preto": 6,
       "repeatedCards": 0,
       "repeatedGems": 0,
-      "ms": 72
+      "ms": 117
     },
     {
       "seed": "GEMAS-SIM-0",
@@ -90,7 +90,7 @@
       "preto": 24,
       "repeatedCards": 22,
       "repeatedGems": 44,
-      "ms": 66
+      "ms": 168
     },
     {
       "seed": "GEMAS-SIM-1",
@@ -109,7 +109,7 @@
       "preto": 13,
       "repeatedCards": 0,
       "repeatedGems": 28,
-      "ms": 74
+      "ms": 139
     },
     {
       "seed": "GEMAS-SIM-2",
@@ -128,7 +128,7 @@
       "preto": 6,
       "repeatedCards": 0,
       "repeatedGems": 0,
-      "ms": 65
+      "ms": 107
     },
     {
       "seed": "GEMAS-SIM-0",
@@ -147,7 +147,7 @@
       "preto": 48,
       "repeatedCards": 30,
       "repeatedGems": 60,
-      "ms": 133
+      "ms": 230
     },
     {
       "seed": "GEMAS-SIM-1",
@@ -166,7 +166,7 @@
       "preto": 41,
       "repeatedCards": 0,
       "repeatedGems": 44,
-      "ms": 127
+      "ms": 182
     },
     {
       "seed": "GEMAS-SIM-2",
@@ -185,7 +185,7 @@
       "preto": 24,
       "repeatedCards": 0,
       "repeatedGems": 16,
-      "ms": 146
+      "ms": 231
     },
     {
       "seed": "GEMAS-SIM-0",
@@ -204,7 +204,7 @@
       "preto": 24,
       "repeatedCards": 30,
       "repeatedGems": 60,
-      "ms": 119
+      "ms": 159
     },
     {
       "seed": "GEMAS-SIM-1",
@@ -223,7 +223,7 @@
       "preto": 16,
       "repeatedCards": 0,
       "repeatedGems": 44,
-      "ms": 115
+      "ms": 185
     },
     {
       "seed": "GEMAS-SIM-2",
@@ -242,7 +242,7 @@
       "preto": 18,
       "repeatedCards": 0,
       "repeatedGems": 16,
-      "ms": 131
+      "ms": 196
     },
     {
       "seed": "GEMAS-SIM-0",
@@ -261,7 +261,7 @@
       "preto": 32,
       "repeatedCards": 22,
       "repeatedGems": 44,
-      "ms": 239
+      "ms": 336
     },
     {
       "seed": "GEMAS-SIM-1",
@@ -280,7 +280,7 @@
       "preto": 17,
       "repeatedCards": 0,
       "repeatedGems": 28,
-      "ms": 206
+      "ms": 334
     },
     {
       "seed": "GEMAS-SIM-2",
@@ -299,7 +299,7 @@
       "preto": 9,
       "repeatedCards": 0,
       "repeatedGems": 0,
-      "ms": 226
+      "ms": 375
     },
     {
       "seed": "GEMAS-SIM-0",
@@ -318,7 +318,7 @@
       "preto": 24,
       "repeatedCards": 22,
       "repeatedGems": 44,
-      "ms": 239
+      "ms": 340
     },
     {
       "seed": "GEMAS-SIM-1",
@@ -337,7 +337,7 @@
       "preto": 14,
       "repeatedCards": 0,
       "repeatedGems": 28,
-      "ms": 248
+      "ms": 306
     },
     {
       "seed": "GEMAS-SIM-2",
@@ -356,7 +356,7 @@
       "preto": 17,
       "repeatedCards": 0,
       "repeatedGems": 0,
-      "ms": 213
+      "ms": 307
     },
     {
       "seed": "GEMAS-SIM-0",
@@ -375,7 +375,7 @@
       "preto": 48,
       "repeatedCards": 30,
       "repeatedGems": 60,
-      "ms": 491
+      "ms": 706
     },
     {
       "seed": "GEMAS-SIM-1",
@@ -394,7 +394,7 @@
       "preto": 35,
       "repeatedCards": 0,
       "repeatedGems": 44,
-      "ms": 467
+      "ms": 646
     },
     {
       "seed": "GEMAS-SIM-2",
@@ -413,7 +413,7 @@
       "preto": 28,
       "repeatedCards": 0,
       "repeatedGems": 16,
-      "ms": 869
+      "ms": 1255
     },
     {
       "seed": "GEMAS-SIM-0",
@@ -432,7 +432,7 @@
       "preto": 24,
       "repeatedCards": 30,
       "repeatedGems": 60,
-      "ms": 442
+      "ms": 543
     },
     {
       "seed": "GEMAS-SIM-1",
@@ -451,7 +451,7 @@
       "preto": 18,
       "repeatedCards": 0,
       "repeatedGems": 44,
-      "ms": 437
+      "ms": 557
     },
     {
       "seed": "GEMAS-SIM-2",
@@ -470,7 +470,7 @@
       "preto": 15,
       "repeatedCards": 0,
       "repeatedGems": 16,
-      "ms": 476
+      "ms": 624
     }
   ]
 }

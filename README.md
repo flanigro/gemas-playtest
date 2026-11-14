@@ -1,14 +1,14 @@
-# GEMAS — protótipo independente 0.2.0
+# GEMAS 1.0
 
-Jogo local para dois jogadores, ou contra o computador. A tela de nova partida segue a proposta GEMAS no Figma; as cartas usam o atlas SVG fornecido pelo autor.
+Jogo de cartas para dois jogadores, no mesmo aparelho ou contra o computador. Cada carta tem duas gemas; ligue cores e formas, converta as cartas do adversário e some mais pontos. As cartas usam o atlas SVG do autor.
 
 [Jogar online pelo GitHub Pages](https://flanigro.github.io/gemas-playtest/) · [Código e histórico](https://github.com/flanigro/gemas-playtest)
 
-CORAÇÕES E MENTES é o projeto principal. GEMAS é um laboratório independente para estudar interface, vínculos, estratégia e formatos de tabuleiro. Seus experimentos não alteram as 48 cartas nem as regras canônicas do CM. Veja a [direção do projeto](docs/DIRECAO_DO_PROJETO.md).
+CORAÇÕES E MENTES é o projeto principal. GEMAS é um laboratório independente para estudar interface, vínculos, estratégia e formatos de tabuleiro. Seus experimentos não alteram as 48 cartas nem as regras canônicas do CM. Veja a [direção do projeto](docs/DIRECAO_DO_PROJETO.md) e a [entrega 1.0.0](docs/ENTREGA_1.0.0.md).
 
 ## Abrir
 
-Abra **index.html** ou **ABRIR_GEMAS.html** no navegador. Os dois arquivos incluem fontes, imagens e o computador em segundo plano e funcionam sem servidor ou internet. O navegador tenta salvar a partida automaticamente; os controles do rodapé oferecem exportação para um arquivo portátil.
+Abra **index.html** ou **ABRIR_GEMAS.html** no navegador. Os dois arquivos são idênticos, incluem fontes, imagens e o computador em segundo plano e funcionam sem servidor ou internet. A partida é salva automaticamente no navegador.
 
 Para desenvolver: Node.js 20+; nenhuma dependência de produção.
 
@@ -21,15 +21,23 @@ Acesse `http://127.0.0.1:4188`. A entrada modular para desenvolvimento fica em `
 
 ## Jogar
 
-Configure tabuleiro, quantidade de cores e formas, adversário, posse e variante. Escolha a abertura quando solicitado. Selecione uma carta e uma casa livre; **OK · colocar** confirma a colocação normal. Arrastar prepara a colocação e mantém a jogada em aberto: escolha OK na carta para colocá-la normalmente ou Converter no alvo adversário para jogar e converter. O arraste nunca encerra a jogada sozinho, mesmo se um modo de conversão tiver sido selecionado antes.
+A tela inicial oferece Continuar partida, Nova partida, Aprender a jogar e Regras. **Aprender a jogar** é uma primeira partida guiada: abertura, colocação, grupo de três e conversão, passo a passo, e depois a partida segue livre contra o Iniciante. Em **Nova partida** escolha adversário, nível, sua cor, quem começa, tabuleiro (4×4 ou 6×4), quantidade de cores e formas e a regra opcional da última carta. As configurações são fixadas no início e não alteram uma partida em andamento.
 
-A ajuda de conversão destaca com borda dourada as cartas da mão que têm alguma conversão legal. Ao selecionar uma delas, os alvos possíveis na mesa também ficam destacados. **Converter** na carta da mesa, na carta da mão ou na barra já confirma a conversão quando casa e alvo estão definidos. Se faltar escolher casa ou alvo, a última escolha conclui a jogada, sem outro OK. Havendo mais de um alvo, o jogador escolhe qual converter. Os controles respeitam as regras da partida: primeira jogada de cada jogador sem conversão, última carta adversária protegida no tabuleiro e restrição da última carta da própria mão.
+A partida cabe numa tela fixa, sem rolagem. Em pé: placar no alto, mão do adversário logo abaixo (pode ser recolhida), tabuleiro no meio e a sua mão embaixo. Deitado ou no computador: adversário e placar de um lado, tabuleiro no centro, sua mão do outro. O tabuleiro de 24 casas aparece como 6×4 em pé e 4×6 deitado: é o mesmo tabuleiro transposto, só na apresentação.
 
-A posse é indicada pelo fundo branco ou preto dos placares e das cartas, sem círculos de identificação. A mão ativa fica no topo, com a barra ao lado em telas largas e logo abaixo em telas menores. As cartas e os intervalos entre as gemas são compactos. O placar geral fica sempre em destaque, fixo durante a rolagem. **Pontos por símbolo**, abaixo do tabuleiro, começa recolhido; Expandir mostra a tabela de cores e formas, e Ver sequências detalha as cartas que pontuam. Abrir ou recolher o painel é preservado durante as jogadas.
+Uma jogada:
 
-As ligações começam visíveis: cor pontilhada e forma contínua fina. Somente sequências confirmadas de três ou mais cartas da mesma posse desenham linhas. **Mostrar ligações** controla o desenho; **Pontos nas cartas** é uma opção independente.
+1. Toque numa carta da mão. As que podem converter trazem um selo com setas.
+2. Toque numa casa livre. A carta aparece ali em prévia; casas marcadas com setas permitem converter.
+3. Confirme no próprio tabuleiro: toque de novo na casa para **colocar**, ou toque na carta adversária marcada para **converter**. Também é possível escolher primeiro a carta adversária e depois a casa.
 
-O rodapé mantém Desfazer, Refazer, Exportar partida, Carregar partida e Exportar histórico sempre disponíveis, sem abrir o laboratório. Quando há computador, também oferece Pausar/Retomar e Controle manual. Desfazer e Refazer percorrem uma jogada por vez e pausam o computador para revisão. O laboratório contém semente, máscaras, identificação das cartas, cálculos, histórico e anotações. Configurações são fixadas no início; não alteram uma partida em andamento.
+Arrastar a carta até a casa faz o mesmo que os passos 1 e 2 e nunca confirma sozinho. Cancelar, Escape ou tocar de novo na carta desfaz a escolha. Tudo funciona por teclado, com setas para andar pelo tabuleiro.
+
+Depois de cada jogada a carta desliza até a casa, a carta convertida vira de posse, o grupo que pontua acende com o ganho e o placar conta até o novo valor. A jogada do computador é mostrada do mesmo jeito e anunciada para leitores de tela. Com “reduzir movimento” ligado no sistema, nada se anima.
+
+A posse é o fundo branco ou preto da carta. As ligações entre gemas de grupos que pontuam aparecem sobre o tabuleiro: cor pontilhada, forma contínua. Toque no placar para ver **Pontos por símbolo**. O menu dá acesso às regras durante a partida e às opções Mostrar ligações, Ajuda de conversão e Pontos nas cartas. Ao fim, a tela de resultado mostra o placar, os grupos de cada jogador e Jogar de novo.
+
+**Modo playtest** (ligado no rodapé da tela inicial, ou abrindo a página com `#playtest`): acrescenta à nova partida a semente e a máscara de casas ativas; no menu da partida, desfazer e refazer um passo, pausar o computador, controle manual, exportar e carregar partida, exportar histórico, anotações, última decisão do computador e histórico; nas cartas, a identificação física.
 
 ## Contrato de playtest
 
@@ -47,7 +55,7 @@ O rodapé mantém Desfazer, Refazer, Exportar partida, Carregar partida e Export
 
 ## Partidas anteriores
 
-A versão 0.2.0 usa `GEMAS-RULES-0.2`. As partidas de regras anteriores não são reinterpretadas nem retomadas sob as novas restrições. Se houver um salvamento antigo neste navegador, a tela de nova partida oferece Exportar partida anterior. Antes de salvar uma nova partida, o jogo copia o anterior para uma chave de arquivo local. Os arquivos antigos permanecem identificados por sua versão. Comece uma nova partida para usar as regras atuais.
+A versão 1.0.0 usa `GEMAS-RULES-0.2`, as mesmas regras da 0.2.0: partidas salvas na 0.2.0 continuam válidas. Partidas de regras anteriores não são reinterpretadas nem retomadas. Se houver um salvamento antigo neste navegador, as telas de início e de nova partida oferecem Exportar partida anterior. Antes de salvar uma nova partida, o jogo copia o anterior para uma chave de arquivo local. Os arquivos antigos permanecem identificados por sua versão.
 
 ## Geração e repetição
 
@@ -57,12 +65,16 @@ Um fluxo bipartido distribui o restante de gemas e uma busca limitada as pareia 
 
 ## Computador
 
-Iniciante avalia pontos imediatos e conexões. Experiente compara candidatas, respostas e compras hipotéticas. Ambos recebem mãos abertas, tabuleiro, composição do baralho e quantidade restante; não recebem a semente, ordem do monte nem histórico. Na abertura recebem somente as duas cartas reveladas. O Worker é cancelado ao desfazer, abrir diálogos ou sair da partida. Se o navegador impedir o Worker, o mesmo cálculo público roda na página após uma breve espera; a interface pode pausar durante esse cálculo. Falhas e demora no Worker acionam essa alternativa, inclusive na abertura. Se o cálculo também falhar, Tentar novamente e Controle manual ficam disponíveis.
+Iniciante avalia pontos imediatos e conexões. Experiente compara candidatas, respostas e compras hipotéticas. Ambos recebem mãos abertas, tabuleiro, composição do baralho e quantidade restante; não recebem a semente, ordem do monte nem histórico. Na abertura recebem somente as duas cartas reveladas. O Worker é cancelado ao desfazer, abrir o menu ou sair da partida. Se o navegador impedir o Worker, o mesmo cálculo público roda na página após uma breve espera; a interface pode pausar durante esse cálculo. Falhas e demora no Worker acionam essa alternativa, inclusive na abertura. Se o cálculo também falhar, a partida pausa com a opção Retomar; o controle manual fica no modo playtest.
+
+## Estrutura
+
+Regras e estado: `src/config.mjs`, `src/generator.mjs`, `src/engine.mjs`, `src/session.mjs` (puros e testados). Computador: `src/opponent.mjs`, `src/opponent-controller.mjs`, `src/worker.mjs`. Interface: `src/ui.mjs`, `src/styles.css`, `src/game-view.mjs` (dados derivados), `src/layout.mjs` (transposição do tabuleiro na tela) e `src/tutorial.mjs` (roteiro da partida guiada). A interface consulta o motor e não redefine regras.
 
 ## Verificação
 
-`npm test` cobre geração, pontuação por oráculo independente, conversão, encerramento, máscaras, reprodução, privacidade da IA e Worker. `tests/browser.mjs` faz o fluxo real em Chrome com Playwright instalado; a variável opcional `GEMAS_PLAYWRIGHT_MODULE` indica um módulo Playwright já disponível no ambiente. Relatórios de validação e simulação ficam em `reports/`.
+`npm test` cobre geração, pontuação por oráculo independente, conversão, encerramento, máscaras, reprodução, privacidade da IA, Worker, transposição do tabuleiro, resumo das jogadas e o roteiro do tutorial. `tests/browser.mjs` faz o fluxo real em Chrome com Playwright (com `npm start` rodando); a variável opcional `GEMAS_PLAYWRIGHT_MODULE` indica um módulo Playwright já disponível no ambiente. Ele confere tela fixa, alvos de toque de 44 px, texto de 14 px, interação, partidas completas, tutorial, arquivo autônomo e a alternativa sem Worker. Relatórios de validação e simulação ficam em `reports/`.
 
-Limites: sem multiplayer remoto; temas são tratamentos visuais locais; não há ainda tutorial guiado nem estudo conclusivo de equilíbrio. A tela de partida é uma proposta de protótipo, pois o Figma fornecido especifica a nova partida.
+Limites: sem multiplayer remoto, sem som e sem código alternativo de cor (o jogo depende de distinguir cores); não há estudo conclusivo de equilíbrio; totais iguais dão empate, sem critério de desempate.
 
 Origem e isolamento: consulte `docs/ORIGEM.md`. Nenhum arquivo de CORAÇÕES E MENTES é usado em tempo de execução.
