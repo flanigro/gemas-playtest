@@ -46,9 +46,10 @@ button:disabled{cursor:default}
 .icon:disabled{opacity:.4}
 
 /* Gemas: recortes do atlas original, sem redesenho. O contorno vem da carta, não do atlas. */
-.gem{display:block;flex:none;width:var(--g,32px);height:var(--g,32px);background-image:var(--atlas);background-repeat:no-repeat;background-size:800% 1000%;background-position:calc(var(--s)*100%/7) calc(var(--c)*100%/9);filter:drop-shadow(0 0 .7px rgba(20,18,30,.8))}
+/* Recorte justo: cada célula do atlas tem 12% a 30% de vazio por lado; o recorte deixa 11%, que preservam o contorno da forma. */
+.gem{--z:1.28205;display:block;flex:none;position:relative;z-index:2;width:var(--g,32px);height:var(--g,32px);background-image:var(--atlas);background-repeat:no-repeat;background-size:calc(var(--g,32px)*var(--z)*8) calc(var(--g,32px)*var(--z)*10);background-position:calc(var(--g,32px)*var(--z)*-1*(var(--s) + .11)) calc(var(--g,32px)*var(--z)*-1*(var(--c) + .11));filter:drop-shadow(0 0 .7px rgba(20,18,30,.8))}
 .preto .gem,.gem.on-dark{filter:drop-shadow(0 0 .7px rgba(255,255,255,.6))}
-.card{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--gg,5px);width:100%;height:100%;border-radius:10px}
+.card{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--gg,2px);width:100%;height:100%;border-radius:10px}
 .card.branco{background:var(--w);border:1px solid var(--w-line);box-shadow:0 1px 2px rgba(0,0,0,.2),0 4px 9px rgba(0,0,0,.12)}
 .card.preto{background:var(--b);border:1px solid var(--b-line);box-shadow:0 1px 2px rgba(0,0,0,.34),0 4px 9px rgba(0,0,0,.2)}
 .card.neutral{background:#ebe8e2;border:1.5px dashed var(--gold-ink)}
@@ -58,10 +59,10 @@ button:disabled{cursor:default}
 .dot.preto{background:var(--b);border-color:var(--b-line)}
 
 /* Partida: uma tela fixa, sem rolagem */
-.game{height:100dvh;display:flex;flex-direction:column;gap:8px;max-width:560px;margin:0 auto;padding:max(8px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left))}
+.game{height:100dvh;display:flex;flex-direction:column;gap:8px;max-width:560px;margin:0 auto;padding:max(8px,env(safe-area-inset-top)) max(10px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left))}
 .side{display:flex;flex-direction:column;gap:8px;flex:none;min-width:0}
 .topbar{display:flex;align-items:center;justify-content:space-between;height:48px}
-.word{font-family:var(--display);font-size:24px;letter-spacing:.3em;padding-left:.3em;line-height:1}
+.word{font-family:var(--display);font-size:22px;letter-spacing:.3em;padding-left:.3em;line-height:1}
 .scores{display:flex;gap:8px}
 .score{flex:1;min-width:0;height:54px;display:flex;align-items:center;gap:7px;padding:0 10px;border-radius:12px;background:var(--panel);border:1px solid var(--panel-line);text-align:left}
 .score.active{border:2px solid var(--gold-ink);padding:0 9px;box-shadow:0 0 0 3px var(--gold-soft)}
@@ -72,11 +73,12 @@ button:disabled{cursor:default}
 .opp{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:50px}
 .opp-label{font-size:14px;color:var(--muted);line-height:1.25}
 .opp-cards{display:flex;align-items:center;gap:4px;min-width:0}
-.minis{display:flex;gap:5px;--g:17px;--gg:2px}
+.minis{display:flex;gap:5px;--g:21px;--gg:1px}
 .mini{width:34px;height:46px;flex:none}
 .mini .card{border-radius:5px}
 .board-zone{flex:1;min-height:0;min-width:0;display:flex;align-items:center;justify-content:center}
-.tray{padding:8px;border-radius:16px;background:var(--tray);border:1px solid var(--tray-line);box-shadow:inset 0 2px 5px rgba(33,31,39,.16),0 1px 0 rgba(255,255,255,.5)}
+.tray{padding:var(--tp,8px);border-radius:16px;background:var(--tray);border:1px solid var(--tray-line);box-shadow:inset 0 2px 5px rgba(33,31,39,.16),0 1px 0 rgba(255,255,255,.5)}
+@media(max-width:429px){.tray{--tp:5px}}
 .board{position:relative;display:grid;grid-template-columns:repeat(var(--cols),var(--cw,70px));grid-auto-rows:var(--ch,90px);gap:var(--gap,6px);--g:var(--gs,30px)}
 .board.flat .card{flex-direction:row}
 .slot{position:relative;min-width:0}
@@ -95,7 +97,7 @@ button:disabled{cursor:default}
 .cell.last .card::after{content:'';position:absolute;right:5px;top:5px;width:8px;height:8px;border-radius:50%;background:var(--gold);box-shadow:0 0 0 1.5px var(--gold-ink)}
 .cell.guide{box-shadow:0 0 0 3px var(--focus);border-radius:10px}
 .cell.dim,.hcard.dim{opacity:.45}
-.chip{position:absolute;left:3px;right:3px;bottom:3px;min-height:28px;display:flex;align-items:center;justify-content:center;padding:2px 2px;border-radius:7px;background:linear-gradient(var(--velvet-top),var(--velvet));border:1px solid var(--gold);color:var(--on-velvet);font-size:14px;font-weight:600;line-height:1;white-space:nowrap}
+.chip{position:absolute;z-index:3;left:3px;right:3px;bottom:3px;min-height:28px;display:flex;align-items:center;justify-content:center;padding:2px 2px;border-radius:7px;background:linear-gradient(var(--velvet-top),var(--velvet));border:1px solid var(--gold);color:var(--on-velvet);font-size:14px;font-weight:600;line-height:1;white-space:nowrap}
 .chip .ic{display:none}
 .board.narrow .chip .ic{display:block}
 .board.narrow .chip span{display:none}
@@ -104,8 +106,17 @@ button:disabled{cursor:default}
 .card-points{position:absolute;right:3px;bottom:3px;min-width:20px;padding:1px 4px;border-radius:6px;background:var(--gold-ink);color:#fff;font-size:14px;font-weight:600;line-height:1.2;text-align:center}
 .card-id{position:absolute;left:4px;bottom:2px;font-size:14px;color:#666}
 .preto .card-id{color:#ddd}
+.hint-points{position:absolute;right:3px;top:3px;z-index:3;min-width:24px;padding:1px 5px;border-radius:8px;background:var(--velvet);color:var(--on-velvet);border:1px solid var(--gold);font-size:14px;font-weight:600;line-height:1.25;text-align:center}
+.card.has-chip .hint-points{top:-10px;right:-6px;box-shadow:0 0 0 2px var(--marble)}
+.cell.ok .hint-points{top:auto;right:auto;position:static;margin-left:2px}
+.status-actions{display:flex;gap:8px;flex:none}
+.brand{display:flex;flex-direction:column;align-items:center;gap:2px}
+.brand .mode{font-size:14px;line-height:1.1;color:var(--muted)}
 .gain{position:absolute;left:50%;top:-6px;z-index:6;transform:translate(-50%,-60%);padding:3px 10px;border-radius:14px;background:var(--gold-ink);color:#fff;font:600 17px/1.2 var(--body);box-shadow:0 0 0 2px #fff;pointer-events:none}
-.links{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:2;overflow:visible}
+.links{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1;overflow:visible}
+/* Camadas: fundo da carta < linhas < gemas < marcas da jogada. */
+.chip,.turned,.card-points,.card-id,.hint-points,.badge{z-index:3}
+.cell.last .card::after{z-index:3}
 .links line{stroke-width:2.6;stroke-linecap:round}
 .links .color-link{stroke-dasharray:1 6}
 .links .shape-link{stroke-width:1.8}
@@ -114,12 +125,12 @@ button:disabled{cursor:default}
 .status p.hint{color:var(--danger);font-weight:500}
 .hand{display:flex;gap:10px;justify-content:center;align-items:flex-end;height:104px}
 .hand-empty{align-self:center;font-size:15px}
-.hcard{position:relative;flex:0 1 76px;min-width:0;height:96px;border-radius:10px;--g:34px;touch-action:none;user-select:none;-webkit-user-select:none}
+.hcard{position:relative;flex:0 1 76px;min-width:0;height:96px;border-radius:10px;--g:43px;touch-action:none;user-select:none;-webkit-user-select:none}
 .hcard.sel{transform:translateY(-8px)}
 .hcard.sel .card{box-shadow:0 0 0 3px var(--gold-ink),0 12px 18px rgba(0,0,0,.24)}
 .hcard.guide .card{box-shadow:0 0 0 3px var(--focus),0 4px 9px rgba(0,0,0,.2)}
 .badge{position:absolute;top:-8px;right:-6px;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:var(--gold-ink);color:#fff;box-shadow:0 0 0 2px var(--marble)}
-.drag-ghost{position:fixed;left:0;top:0;z-index:50;width:76px;height:96px;pointer-events:none;--g:34px;opacity:.94}
+.drag-ghost{position:fixed;left:0;top:0;z-index:50;width:76px;height:96px;pointer-events:none;--g:43px;opacity:.94}
 .drag-ghost .card{box-shadow:0 14px 26px rgba(0,0,0,.32)}
 
 /* Guia do tutorial */
@@ -148,14 +159,14 @@ button:disabled{cursor:default}
   .game.tall .num{font-size:26px}
   .game.tall .opp{min-height:46px}
   .game.tall .hand{height:88px}
-  .game.tall .hcard{height:82px;--g:29px}
+  .game.tall .hcard{height:82px;--g:37px}
   .game.tall .status{min-height:44px}
 }
 @media(min-width:700px) and (min-height:860px){
   .game.tall .hand{height:124px}
-  .game.tall .hcard{flex-basis:90px;height:114px;--g:42px}
+  .game.tall .hcard{flex-basis:90px;height:114px;--g:52px}
   .game.tall .mini{width:40px;height:54px}
-  .game.tall .minis{--g:20px}
+  .game.tall .minis{--g:24px}
 }
 
 /* Telas que rolam: início, nova partida */
@@ -278,9 +289,9 @@ table.symbols td.sum{font-weight:700}
   .game.tall .score{height:46px}
   .game.tall .opp{min-height:44px}
   .game.tall .mini{width:30px;height:40px}
-  .game.tall .minis{--g:15px}
+  .game.tall .minis{--g:18px}
   .game.tall .hand{height:76px}
-  .game.tall .hcard{height:72px;--g:26px;--gg:3px}
+  .game.tall .hcard{height:72px;--g:33px;--gg:1px}
   .game.tall .hcard.sel{transform:translateY(-4px)}
   .game.tall .coach{min-height:0}
 }

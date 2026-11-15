@@ -45,7 +45,7 @@ function sessionUntil(setup,predicate) {
   assert.notEqual(session.state.phase,'finalizada','posição de teste não encontrada');
   return session;
 }
-const manual={players:{branco:'human',preto:'human'},difficulty:'beginner'};
+const manual={players:{branco:'human',preto:'human'},difficulty:'beginner',pointHints:true};
 const hasConversion=s=>s.phase==='jogando'&&legalActions(s).some(a=>a.mode==='converter');
 
 // Partida em tela fixa: sem rolagem, nada fora da tela, alvos ≥ 44 px, texto ≥ 14 px, gemas inteiras.
@@ -97,6 +97,14 @@ try{
   await page.locator('[data-columns="6"]').click();assert.match(await page.locator('.deck-line').textContent(),/32\s*cartas/);
   await page.locator('[data-columns="4"]').click();assert.match(await page.locator('.deck-line').textContent(),/24\s*cartas/);
   assert.equal(await page.locator('#seed').count(),0,'laboratório escondido do jogador');
+  assert.equal(await page.locator('[data-setting="convertBy"][data-value="shape"]').getAttribute('aria-pressed'),'true','formas comandam a conversão por padrão');
+  assert.match(await page.locator('.setup').textContent(),/cobrem as duas formas/);
+  await page.locator('[data-setting="convertBy"][data-value="color"]').click();assert.match(await page.locator('.setup').textContent(),/cobrem as duas cores/);
+  await page.locator('[data-setting="convertBy"][data-value="shape"]').click();
+  assert.equal(await page.locator('#point-hints').isChecked(),true,'Iniciante: dica de pontos ligada');
+  await page.locator('[data-setting="difficulty"][data-value="experienced"]').click();assert.equal(await page.locator('#point-hints').count(),0,'Experiente: sem dica de pontos');
+  await page.locator('[data-setting="difficulty"][data-value="beginner"]').click();
+  checks.push('Conversão por formas (padrão) ou cores escolhida na nova partida; dica de pontos ligada no Iniciante e ausente no Experiente.');
   checks.push('Abertura do app, regras e nova partida em 320/360/390/768/1280 px: sem rolagem horizontal, alvos ≥ 44 px, texto ≥ 14 px, 16 símbolos do Figma, fontes locais, paleta independente e monte variável.');
 
   const legacy=JSON.stringify({format:'GEMAS-SAVE',version:1,rulesVersion:'GEMAS-RULES-0.1',generatorVersion:'GEMAS-GENERATOR-1',setup:{},commands:[],notes:'antiga'});
@@ -107,7 +115,7 @@ try{
   assert.equal(await readFile(await oldFile.path(),'utf8'),legacy);
   await page.getByRole('button',{name:'Nova partida'}).click();await page.locator('[data-setting="opponent"][data-value="manual"]').click();await page.getByRole('button',{name:'Começar partida'}).click();
   assert.equal(await page.evaluate(key=>localStorage.getItem(key),ARCHIVE),legacy,'partida antiga arquivada sem alteração');
-  assert.equal((await saved(page)).rulesVersion,'GEMAS-RULES-0.2');
+  assert.equal((await saved(page)).rulesVersion,'GEMAS-RULES-0.3');
   checks.push('Salvamentos de regras anteriores: recusados, exportáveis sem alteração e arquivados antes da nova partida.');
 
   /* 2. Partida em tela fixa, Layout A, nos formatos de referência */
@@ -143,6 +151,12 @@ try{
   const marked=await page.locator('.cell.conv').evaluateAll(list=>list.map(el=>Number(el.dataset.cell)).sort((a,b)=>a-b));
   assert.deepEqual(marked,[...new Set(conversionMoves(before,action.cardId).map(o=>o.action.position))].sort((a,b)=>a-b),'casas que permitem converter');
   assert.equal(await page.locator('.cell.ok').count(),before.board.filter(c=>!c).length);
+  // Dica de pontos: cada casa mostra o melhor ganho possível, calculado pelo motor.
+  for(const cellIndex of before.config.active.filter(i=>!before.board[i])){
+    const owner=before.current,base=score(before)[owner].total,gains=legalActions(before).filter(a=>a.cardId===action.cardId&&a.position===cellIndex).map(a=>score(dispatch(before,a))[owner].total-base),best=Math.max(...gains);
+    const shown=await cell(page,cellIndex).locator('.hint-points').textContent().catch(()=>null);
+    assert.equal(shown,best>0?`+${best}`:null,`dica na casa ${cellIndex}`);
+  }
   await cell(page,action.position).click();
   assert.deepEqual(await state(page),before,'a prévia não altera a partida');
   assert.match(await cell(page,action.position).getAttribute('aria-label'),/^Confirmar: colocar/);
@@ -234,15 +248,26 @@ try{
   await checkScreen(page,'resultado');await shot(page,'resultado-390');
   await page.getByRole('button',{name:'Ver o tabuleiro'}).click();await checkScreen(page,'tabuleiro final');
   assert.match(await page.locator('.status p').textContent(),/Partida encerrada/);
-  await page.getByRole('button',{name:'Resultado'}).click();await page.getByRole('button',{name:'Jogar de novo'}).click();
-  const again=await saved(page);assert.equal(again.state.phase,'abertura');assert.deepEqual(again.setup.config,session.setup.config);assert.notEqual(again.setup.seed,'DOIS-6X4');
+  const loser=final.winner==='empate'?null:final.winner==='branco'?'preto':'branco';
+  await page.getByRole('button',{name:'Resultado'}).click();
+  if(loser)assert.match(await page.locator('.dialog-body .muted').last().textContent(),new RegExp(`${loser==='branco'?'Branco':'Preto'} começa e ${final.winner==='branco'?'Branco':'Preto'} escolhe`,'i'));
+  await page.getByRole('button',{name:'Jogar de novo'}).click();
+  let again=await saved(page);assert.equal(again.state.phase,'abertura');assert.notEqual(again.setup.seed,'DOIS-6X4');
+  assert.deepEqual({...again.setup.config,opener:null},{...session.setup.config,opener:null},'mesma configuração');
+  assert.equal(again.setup.config.opener,loser??'sorteio','quem perdeu começa; empate sorteia');
+  if(loser){assert.equal(again.state.config.opener,loser);assert.equal(again.state.current,final.winner,'quem ganhou escolhe as cartas de abertura');}
   checks.push(`Partida completa a dois no 6×4 vertical: ${moves} comandos, ${conversions} conversões, estado idêntico ao do motor a cada jogada, placar, ligações, pontos por símbolo, menu, regras durante a partida, mão adversária recolhível, desfazer, tela de resultado e revanche.`);
 
   // Empate tem tela própria.
   for(let n=1;;n++){const trial=new GameSession({seed:`EMPATE-${n}`,config:{colors:8,shapes:8},...manual});while(trial.state.phase!=='finalizada')trial.dispatch(legalActions(trial.state)[0]);if(score(trial.state).winner==='empate'){await inject(page,trial);break;}assert.ok(n<400,'sem empate para testar');}
   await page.locator('.dialog[data-modal="result"]').waitFor();assert.equal(await page.locator('#dialog-title').textContent(),'Empate');assert.equal(await page.locator('.final-side.winner').count(),0);
   assert.match(await live(page),/Partida retomada\. Fim da partida\. Empate/);
-  checks.push('Vitória e empate conferidos contra score() do motor na tela de resultado.');
+  await page.keyboard.press('Escape');assert.deepEqual(await page.locator('.status-actions button').allTextContents(),['Resultado','Nova partida']);
+  await checkScreen(page,'fim com dois botões');
+  await page.getByRole('button',{name:'Nova partida'}).click();
+  const tieNext=await saved(page);assert.equal(tieNext.setup.config.opener,'sorteio','depois do empate, sorteio');assert.equal(tieNext.state.phase,'abertura');
+  assert.equal(tieNext.setup.config.colors,8);assert.equal(tieNext.setup.config.shapes,8);
+  checks.push('Vitória e empate conferidos contra score() do motor na tela de resultado; no fim, Nova partida ao lado de Resultado repete a configuração, com quem perdeu começando (quem ganhou escolhe as cartas) e sorteio depois de empate.');
 
   /* 5. Modo playtest: escondido do jogador, mas completo */
   await page.keyboard.press('Escape');await page.locator('[data-action="menu"]').click();
@@ -288,7 +313,7 @@ try{
   assert.ok(await page.evaluate(()=>document.getAnimations().length>0),'a jogada do computador é animada');
   await page.waitForFunction(()=>/O computador colocou .+ na linha \d, coluna \d\..*Placar: Você \d+, Computador \d+\. Sua vez\./.test(document.querySelector('#live').textContent));
   assert.equal(await page.locator('#live').getAttribute('aria-live'),'polite');
-  assert.match(await page.locator('.status p').textContent(),/O computador jogou na linha \d, coluna \d\. Sua vez/);
+  assert.match(await page.locator('.status p').textContent(),/O computador jogou na linha \d, coluna \d\. Sua vez|Sua vez\. Ligue 3 ou mais cartas suas pela mesma forma ou pela mesma cor\./);
   await page.waitForTimeout(1600);game=await state(page);
   const mine=legalActions(game).find(a=>a.mode==='normal');await hand(page,mine.cardId).click();await cell(page,mine.position).click();await cell(page,mine.position).click();
   assert.ok(await page.evaluate(()=>document.getAnimations().length>0),'carta desliza da mão até a casa');

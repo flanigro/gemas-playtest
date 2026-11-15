@@ -1,17 +1,17 @@
 {
   "note": "Amostra exploratória; não comprova equilíbrio de posse, paletas ou níveis. Experiente usa três candidatas e duas compras hipotéticas nesta execução.",
   "summary": {
-    "rulesVersion": "GEMAS-RULES-0.2",
+    "rulesVersion": "GEMAS-RULES-0.3",
     "generatorVersion": "GEMAS-GENERATOR-1",
     "games": 24,
     "stuck": 0,
     "endings": {
-      "tabuleiro-cheio": 13,
-      "maos-vazias": 11
+      "tabuleiro-cheio": 16,
+      "maos-vazias": 8
     },
     "wins": {
-      "branco": 7,
-      "preto": 11,
+      "branco": 2,
+      "preto": 16,
       "empate": 6
     }
   },
@@ -33,7 +33,7 @@
       "preto": 32,
       "repeatedCards": 22,
       "repeatedGems": 44,
-      "ms": 158
+      "ms": 111
     },
     {
       "seed": "GEMAS-SIM-1",
@@ -45,14 +45,14 @@
       "endReason": "tabuleiro-cheio",
       "occupied": 16,
       "commands": 15,
-      "conversions": 6,
+      "conversions": 5,
       "passes": 0,
-      "winner": "branco",
-      "branco": 24,
-      "preto": 20,
+      "winner": "preto",
+      "branco": 16,
+      "preto": 26,
       "repeatedCards": 0,
       "repeatedGems": 28,
-      "ms": 101
+      "ms": 77
     },
     {
       "seed": "GEMAS-SIM-2",
@@ -66,12 +66,12 @@
       "commands": 15,
       "conversions": 6,
       "passes": 0,
-      "winner": "branco",
-      "branco": 16,
-      "preto": 6,
+      "winner": "empate",
+      "branco": 14,
+      "preto": 14,
       "repeatedCards": 0,
       "repeatedGems": 0,
-      "ms": 117
+      "ms": 68
     },
     {
       "seed": "GEMAS-SIM-0",
@@ -90,7 +90,7 @@
       "preto": 24,
       "repeatedCards": 22,
       "repeatedGems": 44,
-      "ms": 168
+      "ms": 68
     },
     {
       "seed": "GEMAS-SIM-1",
@@ -100,16 +100,16 @@
       "shapes": 5,
       "allowLastConversion": true,
       "endReason": "maos-vazias",
-      "occupied": 14,
-      "commands": 13,
+      "occupied": 12,
+      "commands": 11,
       "conversions": 8,
-      "passes": 1,
-      "winner": "branco",
-      "branco": 14,
-      "preto": 13,
+      "passes": 0,
+      "winner": "empate",
+      "branco": 12,
+      "preto": 12,
       "repeatedCards": 0,
       "repeatedGems": 28,
-      "ms": 139
+      "ms": 59
     },
     {
       "seed": "GEMAS-SIM-2",
@@ -118,17 +118,17 @@
       "colors": 6,
       "shapes": 8,
       "allowLastConversion": true,
-      "endReason": "maos-vazias",
-      "occupied": 12,
-      "commands": 11,
-      "conversions": 8,
+      "endReason": "tabuleiro-cheio",
+      "occupied": 16,
+      "commands": 15,
+      "conversions": 5,
       "passes": 0,
-      "winner": "empate",
-      "branco": 6,
-      "preto": 6,
+      "winner": "preto",
+      "branco": 9,
+      "preto": 13,
       "repeatedCards": 0,
       "repeatedGems": 0,
-      "ms": 107
+      "ms": 79
     },
     {
       "seed": "GEMAS-SIM-0",
@@ -147,7 +147,7 @@
       "preto": 48,
       "repeatedCards": 30,
       "repeatedGems": 60,
-      "ms": 230
+      "ms": 127
     },
     {
       "seed": "GEMAS-SIM-1",
@@ -162,11 +162,11 @@
       "conversions": 6,
       "passes": 0,
       "winner": "preto",
-      "branco": 37,
-      "preto": 41,
+      "branco": 39,
+      "preto": 40,
       "repeatedCards": 0,
       "repeatedGems": 44,
-      "ms": 182
+      "ms": 127
     },
     {
       "seed": "GEMAS-SIM-2",
@@ -178,14 +178,14 @@
       "endReason": "tabuleiro-cheio",
       "occupied": 24,
       "commands": 23,
-      "conversions": 6,
+      "conversions": 3,
       "passes": 0,
-      "winner": "branco",
-      "branco": 27,
-      "preto": 24,
+      "winner": "preto",
+      "branco": 25,
+      "preto": 38,
       "repeatedCards": 0,
       "repeatedGems": 16,
-      "ms": 231
+      "ms": 263
     },
     {
       "seed": "GEMAS-SIM-0",
@@ -204,7 +204,7 @@
       "preto": 24,
       "repeatedCards": 30,
       "repeatedGems": 60,
-      "ms": 159
+      "ms": 111
     },
     {
       "seed": "GEMAS-SIM-1",
@@ -214,16 +214,16 @@
       "shapes": 5,
       "allowLastConversion": true,
       "endReason": "maos-vazias",
-      "occupied": 13,
-      "commands": 12,
+      "occupied": 14,
+      "commands": 13,
       "conversions": 8,
       "passes": 0,
-      "winner": "branco",
-      "branco": 25,
-      "preto": 16,
+      "winner": "preto",
+      "branco": 14,
+      "preto": 19,
       "repeatedCards": 0,
       "repeatedGems": 44,
-      "ms": 185
+      "ms": 116
     },
     {
       "seed": "GEMAS-SIM-2",
@@ -236,13 +236,13 @@
       "occupied": 16,
       "commands": 15,
       "conversions": 8,
-      "passes": 2,
+      "passes": 0,
       "winner": "preto",
-      "branco": 17,
-      "preto": 18,
+      "branco": 13,
+      "preto": 21,
       "repeatedCards": 0,
       "repeatedGems": 16,
-      "ms": 196
+      "ms": 135
     },
     {
       "seed": "GEMAS-SIM-0",
@@ -261,7 +261,7 @@
       "preto": 32,
       "repeatedCards": 22,
       "repeatedGems": 44,
-      "ms": 336
+      "ms": 225
     },
     {
       "seed": "GEMAS-SIM-1",
@@ -273,14 +273,14 @@
       "endReason": "tabuleiro-cheio",
       "occupied": 16,
       "commands": 15,
-      "conversions": 6,
+      "conversions": 1,
       "passes": 0,
-      "winner": "branco",
-      "branco": 19,
-      "preto": 17,
+      "winner": "preto",
+      "branco": 22,
+      "preto": 31,
       "repeatedCards": 0,
       "repeatedGems": 28,
-      "ms": 334
+      "ms": 245
     },
     {
       "seed": "GEMAS-SIM-2",
@@ -292,14 +292,14 @@
       "endReason": "tabuleiro-cheio",
       "occupied": 16,
       "commands": 15,
-      "conversions": 6,
+      "conversions": 1,
       "passes": 0,
       "winner": "preto",
-      "branco": 5,
-      "preto": 9,
+      "branco": 13,
+      "preto": 24,
       "repeatedCards": 0,
       "repeatedGems": 0,
-      "ms": 375
+      "ms": 272
     },
     {
       "seed": "GEMAS-SIM-0",
@@ -318,7 +318,7 @@
       "preto": 24,
       "repeatedCards": 22,
       "repeatedGems": 44,
-      "ms": 340
+      "ms": 224
     },
     {
       "seed": "GEMAS-SIM-1",
@@ -327,17 +327,17 @@
       "colors": 4,
       "shapes": 5,
       "allowLastConversion": true,
-      "endReason": "maos-vazias",
-      "occupied": 12,
-      "commands": 11,
+      "endReason": "tabuleiro-cheio",
+      "occupied": 16,
+      "commands": 15,
       "conversions": 8,
-      "passes": 0,
+      "passes": 4,
       "winner": "preto",
-      "branco": 6,
-      "preto": 14,
+      "branco": 11,
+      "preto": 25,
       "repeatedCards": 0,
       "repeatedGems": 28,
-      "ms": 306
+      "ms": 201
     },
     {
       "seed": "GEMAS-SIM-2",
@@ -349,14 +349,14 @@
       "endReason": "tabuleiro-cheio",
       "occupied": 16,
       "commands": 15,
-      "conversions": 7,
-      "passes": 1,
-      "winner": "preto",
-      "branco": 6,
-      "preto": 17,
+      "conversions": 2,
+      "passes": 0,
+      "winner": "branco",
+      "branco": 21,
+      "preto": 6,
       "repeatedCards": 0,
       "repeatedGems": 0,
-      "ms": 307
+      "ms": 261
     },
     {
       "seed": "GEMAS-SIM-0",
@@ -375,7 +375,7 @@
       "preto": 48,
       "repeatedCards": 30,
       "repeatedGems": 60,
-      "ms": 706
+      "ms": 460
     },
     {
       "seed": "GEMAS-SIM-1",
@@ -389,12 +389,12 @@
       "commands": 23,
       "conversions": 6,
       "passes": 0,
-      "winner": "empate",
-      "branco": 35,
-      "preto": 35,
+      "winner": "preto",
+      "branco": 33,
+      "preto": 37,
       "repeatedCards": 0,
       "repeatedGems": 44,
-      "ms": 646
+      "ms": 459
     },
     {
       "seed": "GEMAS-SIM-2",
@@ -406,14 +406,14 @@
       "endReason": "tabuleiro-cheio",
       "occupied": 24,
       "commands": 23,
-      "conversions": 6,
+      "conversions": 0,
       "passes": 0,
       "winner": "preto",
-      "branco": 26,
-      "preto": 28,
+      "branco": 38,
+      "preto": 43,
       "repeatedCards": 0,
       "repeatedGems": 16,
-      "ms": 1255
+      "ms": 790
     },
     {
       "seed": "GEMAS-SIM-0",
@@ -432,7 +432,7 @@
       "preto": 24,
       "repeatedCards": 30,
       "repeatedGems": 60,
-      "ms": 543
+      "ms": 389
     },
     {
       "seed": "GEMAS-SIM-1",
@@ -442,16 +442,16 @@
       "shapes": 5,
       "allowLastConversion": true,
       "endReason": "maos-vazias",
-      "occupied": 15,
-      "commands": 14,
+      "occupied": 22,
+      "commands": 21,
       "conversions": 8,
-      "passes": 2,
+      "passes": 5,
       "winner": "branco",
-      "branco": 27,
-      "preto": 18,
+      "branco": 40,
+      "preto": 28,
       "repeatedCards": 0,
       "repeatedGems": 44,
-      "ms": 557
+      "ms": 470
     },
     {
       "seed": "GEMAS-SIM-2",
@@ -460,17 +460,17 @@
       "colors": 6,
       "shapes": 8,
       "allowLastConversion": true,
-      "endReason": "maos-vazias",
-      "occupied": 19,
-      "commands": 18,
-      "conversions": 8,
-      "passes": 7,
+      "endReason": "tabuleiro-cheio",
+      "occupied": 24,
+      "commands": 23,
+      "conversions": 6,
+      "passes": 0,
       "winner": "preto",
       "branco": 10,
-      "preto": 15,
+      "preto": 29,
       "repeatedCards": 0,
       "repeatedGems": 16,
-      "ms": 624
+      "ms": 572
     }
   ]
 }

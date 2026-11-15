@@ -68,41 +68,43 @@ test('oráculo independente confere todos os atributos em tabuleiros aleatórios
     }
   }
 });
+for(const [KIND,OTHER,NAME] of [['shape','color','formas'],['color','shape','cores']]){
 function conversionFixture({last=false,allow=false,otherEmpty=false,loneEnemy=false}={}){
-  let s=newGame('conversion-fixture',{colors:4,shapes:4,opener:'branco',allowLastConversion:allow});
-  const target=s.cards[0],colors=target.gems.map(g=>g.color);
-  const placed=s.cards.find(c=>c.id!==target.id&&c.gems.some(g=>g.color===colors[0]));
-  const old=s.cards.find(c=>![target.id,placed.id].includes(c.id)&&c.gems.some(g=>g.color===colors[1]));
+  let s=newGame('conversion-fixture',{colors:4,shapes:4,opener:'branco',convertBy:KIND,allowLastConversion:allow});
+  const target=s.cards[0],values=target.gems.map(g=>g[KIND]);
+  const placed=s.cards.find(c=>c.id!==target.id&&c.gems.some(g=>g[KIND]===values[0]));
+  const old=s.cards.find(c=>![target.id,placed.id].includes(c.id)&&c.gems.some(g=>g[KIND]===values[1]));
   s.phase='jogando';s.current='branco';s.turn=3;s.moves={branco:1,preto:1};s.board.fill(null);s.board[5]={id:target.id,owner:'preto'};s.board[4]={id:old.id,owner:'branco'};
   const rest=s.cards.map(c=>c.id).filter(id=>![target.id,placed.id,old.id].includes(id));
   if(!loneEnemy)s.board[15]={id:rest.shift(),owner:'preto'};
   s.hands={branco:[placed.id,...(last?[]:[rest.shift()])],preto:otherEmpty?[]:[rest.shift()]};s.deck=rest;
   assertState(s);return {s,a:{type:'move',mode:'converter',cardId:placed.id,position:1,target:5}};
 }
-test('conversão cobre duas cores com nova e antiga; conserva gemas e não compra',()=>{
-  const {s,a}=conversionFixture(),before=structuredClone(s),check=legal(s,a);assert.equal(check.ok,true);assert.deepEqual(check.coverage.map(c=>c.role),['nova','antiga']);
+test(`conversão por ${NAME} cobre os dois valores com nova e antiga; conserva gemas e não compra`,()=>{
+  const {s,a}=conversionFixture(),before=structuredClone(s),check=legal(s,a);assert.equal(check.ok,true);assert.deepEqual(check.coverage.map(c=>c.role),['nova','antiga']);assert.ok(check.coverage.every(c=>c.kind===KIND));
+  const target=cardById(s,s.board[5].id).gems.map(g=>g[KIND]).sort();assert.deepEqual(check.coverage.map(c=>c.value).sort(),target);
   const n=dispatch(s,a);assert.equal(n.board[5].owner,'branco');assert.deepEqual(n.cards,s.cards);assert.deepEqual(n.deck,s.deck);assert.equal(n.hands.branco.length,1);assert.deepEqual(s,before);
   assert.equal(legal(s,{...a,source:'topo'}).ok,false);assert.equal(legal(s,{...a,target:4}).ok,false);
   const noOld=structuredClone(s);noOld.deck.push(noOld.board[4].id);noOld.board[4]=null;assert.equal(legal(noOld,a).ok,false);
 });
-test('normal compra uma e conversão é opcional na mesma posição',()=>{
+test(`normal compra uma e conversão é opcional na mesma posição (${NAME})`,()=>{
   const {s,a}=conversionFixture(),n=dispatch(s,{...a,mode:'normal'});assert.equal(n.board[5].owner,'preto');assert.equal(n.hands.branco.length,s.hands.branco.length);assert.equal(n.deck.length,s.deck.length-1);
   assert.equal(legal(s,a).ok,true);
 });
-test('formas e sequências ativas não dão proteção contra conversão',()=>{
-  const {s,a}=conversionFixture();const target=cardById(s,s.board[5].id),wanted=target.gems[0].shape;
-  const extra=s.deck.filter(id=>cardById(s,id).gems.some(g=>g.shape===wanted)).slice(0,2);
+test(`com conversão por ${NAME}, o outro atributo e as sequências não dão proteção`,()=>{
+  const {s,a}=conversionFixture();const target=cardById(s,s.board[5].id),wanted=target.gems[0][OTHER];
+  const extra=s.deck.filter(id=>cardById(s,id).gems.some(g=>g[OTHER]===wanted)).slice(0,2);
   for(let i=0;i<extra.length;i++){s.deck.splice(s.deck.indexOf(extra[i]),1);s.board[[6,10][i]]={id:extra[i],owner:'preto'};}
-  assert.ok(score(s).preto.chains.some(c=>c.kind==='shape'));assert.equal(legal(s,a).ok,true);assert.equal(legal(s,a).coverage.length,2);
+  assert.ok(score(s).preto.chains.some(c=>c.kind===OTHER));assert.equal(legal(s,a).ok,true);assert.equal(legal(s,a).coverage.length,2);
 });
-test('última carta proibida por padrão; variante passa automaticamente e encerra ambas vazias',()=>{
+test(`última carta proibida por padrão; variante passa automaticamente e encerra ambas vazias (${NAME})`,()=>{
   const blocked=conversionFixture({last:true});assert.equal(legal(blocked.s,blocked.a).ok,false);
   const {s,a}=conversionFixture({last:true,allow:true}),n=dispatch(s,a);assert.equal(n.hands.branco.length,0);assert.equal(n.current,'preto');
   const next=dispatch(n,legalActions(n)[0]);assert.equal(next.current,'preto');assert.equal(next.history.at(-1).type,'pass');
   const both=conversionFixture({last:true,allow:true,otherEmpty:true}),end=dispatch(both.s,both.a);
   assert.equal(end.phase,'finalizada');assert.equal(end.endReason,'maos-vazias');assert.ok(end.deck.length>0);assert.ok(end.board.some(c=>!c));assert.equal(legalActions(end).length,0);
 });
-test('primeira jogada é protegida para cada jogador, independentemente do turno ou de opções antigas',()=>{
+test(`primeira jogada é protegida para cada jogador, independentemente do turno ou de opções antigas (${NAME})`,()=>{
   assert.equal(normalizeConfig().blockFirstConversion,true);
   assert.equal(normalizeConfig({blockFirstConversion:false}).blockFirstConversion,true);
   for(const owner of ['branco','preto']){
@@ -118,7 +120,7 @@ test('primeira jogada é protegida para cada jogador, independentemente do turno
     s.moves[owner]=1;assert.equal(legal(s,a).ok,true);
   }
 });
-test('a última carta adversária do tabuleiro é protegida, inclusive na variante da última carta da mão',()=>{
+test(`a última carta adversária do tabuleiro é protegida, inclusive na variante da última carta da mão (${NAME})`,()=>{
   for(const allow of [false,true]){
     const {s,a}=conversionFixture({loneEnemy:true,allow});const before=structuredClone(s);
     assert.equal(legal(s,a).ok,false);assert.match(legal(s,a).reason,/última carta adversária/);
@@ -126,6 +128,11 @@ test('a última carta adversária do tabuleiro é protegida, inclusive na varian
     for(const difficulty of ['beginner','experienced'])assert.equal(chooseAction(observeGame(s),{difficulty}).action.mode,'normal');
   }
   const {s,a}=conversionFixture();const after=dispatch(s,a);assert.equal(after.board.filter(c=>c?.owner==='preto').length,1);assertState(after);
+});
+}
+test('formas comandam a conversão por padrão; a escolha fica na configuração',()=>{
+  assert.equal(normalizeConfig().convertBy,'shape');assert.equal(normalizeConfig({convertBy:'color'}).convertBy,'color');
+  assert.throws(()=>normalizeConfig({convertBy:'cor'}),/Atributo de conversão/);
 });
 const setup=(seed='save',config={})=>({seed,config,players:{branco:'human',preto:'human'},difficulty:'beginner',theme:'marble'});
 test('salvar, retomar e ramificar preservam cartas, semente, opções e histórico',()=>{

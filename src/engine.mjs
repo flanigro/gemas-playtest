@@ -45,8 +45,8 @@ export function newGame(seed,input={}) {
   const state={format:'GEMAS-STATE',rulesVersion:RULES_VERSION,generatorVersion:GENERATOR_VERSION,seed,config,cards:generated.cards,board:Array(config.rows*config.columns).fill(null),hands,deck,phase:'abertura',current:other(config.opener),turn:0,moves:{branco:0,preto:0},endReason:null,history:[]};
   assertState(state);return state;
 }
-// The two colors of the target must be covered by two different allied cards.
-// Shapes and scoring components do not participate in conversion eligibility.
+// The two values of the conversion attribute (shape by default, or color) on the target must be
+// covered by two different allied cards. The other attribute only scores.
 export function checkMove(state,action) {
   demand(action&&typeof action==='object','Selecione uma jogada.');
   if(action.type==='opening'){
@@ -66,13 +66,14 @@ export function checkMove(state,action) {
   demand(Number.isInteger(action.target)&&target&&target.owner!==state.current,'Escolha uma carta adversária como alvo.');
   demand(state.board.filter(cell=>cell?.owner===target.owner).length>1,'A última carta adversária no tabuleiro não pode ser convertida.');
   demand(adjacent(action.position,action.target,state.config.columns),'A carta nova precisa ser vizinha do alvo.');
-  const colors=attributes(state,target.id,'color'),newColors=attributes(state,action.cardId,'color');
-  demand(newColors.some(c=>colors.includes(c)),'A carta nova precisa cobrir uma das cores do alvo.');
-  for(const color of colors.filter(c=>newColors.includes(c))){const remaining=colors.find(c=>c!==color);
-    const oldPosition=state.board.findIndex((cell,i)=>cell?.owner===state.current&&adjacent(i,action.target,state.config.columns)&&attributes(state,cell.id,'color').includes(remaining));
-    if(oldPosition>=0)return {ok:true,reason:'Carta nova e apoio antigo cobrem as duas cores; sem compra.',coverage:[{role:'nova',position:action.position,id:action.cardId,color},{role:'antiga',position:oldPosition,id:state.board[oldPosition].id,color:remaining}]};
+  const kind=state.config.convertBy,word=kind==='color'?['cores','cor']:['formas','forma'];
+  const values=attributes(state,target.id,kind),newValues=attributes(state,action.cardId,kind);
+  demand(newValues.some(v=>values.includes(v)),`A carta nova precisa cobrir uma das ${word[0]} do alvo.`);
+  for(const value of values.filter(v=>newValues.includes(v))){const remaining=values.find(v=>v!==value);
+    const oldPosition=state.board.findIndex((cell,i)=>cell?.owner===state.current&&adjacent(i,action.target,state.config.columns)&&attributes(state,cell.id,kind).includes(remaining));
+    if(oldPosition>=0)return {ok:true,reason:`Carta nova e apoio antigo cobrem as duas ${word[0]}; sem compra.`,coverage:[{role:'nova',position:action.position,id:action.cardId,kind,value},{role:'antiga',position:oldPosition,id:state.board[oldPosition].id,kind,value:remaining}]};
   }
-  throw new Error('Falta outra carta sua, já no tabuleiro e vizinha do alvo, com a outra cor.');
+  throw new Error(`Falta outra carta sua, já no tabuleiro e vizinha do alvo, com a outra ${word[1]}.`);
 }
 export function legal(state,action){try{assertState(state);return checkMove(state,action);}catch(e){return {ok:false,reason:e.message};}}
 export function conversionOptions(state,cardId,position) {

@@ -7,7 +7,7 @@ import {adjacent} from '../src/config.mjs';
 import {conversionMoves,moveSummary} from '../src/game-view.mjs';
 import {chooseAction,observeGame} from '../src/opponent.mjs';
 
-const colors=(state,id)=>cardById(state,id).gems.map(g=>g.color);
+const shapes=(state,id)=>cardById(state,id).gems.map(g=>g.shape);
 test('tutorial guiado: cada passo é uma jogada legal do motor e ensina o que o texto afirma',()=>{
   const session=new GameSession(tutorialSetup()),actions=TUTORIAL.steps.filter(step=>step.action);
   assert.equal(session.state.current,'branco','o humano escolhe a abertura');
@@ -23,18 +23,19 @@ test('tutorial guiado: cada passo é uma jogada legal do motor e ensina o que o 
     assert.equal(score(session.state).preto.total,0,'o Preto não pontua durante o roteiro');
   }
   const [opening,,first,,trio,,conversion]=summaries,state=session.state;
+  assert.equal(state.config.convertBy,'shape','o tutorial ensina a conversão padrão, por formas');
   assert.deepEqual(opening.positions,[5,10]);assert.equal(session.states[1].board[5].owner,'branco');
-  // Dupla amarela (C), ainda sem pontos, e compra.
-  assert.ok(adjacent(1,5,4)&&colors(state,state.board[1].id).includes('C')&&colors(state,state.board[5].id).includes('C'));
+  // Dupla de quadrados (forma 2), ainda sem pontos, e compra.
+  assert.ok(adjacent(1,5,4)&&shapes(state,state.board[1].id).includes(2)&&shapes(state,state.board[5].id).includes(2));
   assert.equal(first.gain,0);assert.notEqual(first.drew,null);
-  // Trio amarelo: +3, por diagonal.
-  assert.equal(trio.gain,3);assert.deepEqual(trio.glow,[1,5,8]);assert.deepEqual(trio.after,{branco:3,preto:0});
-  // Conversão: nova cobre verde (D), antiga cobre amarelo (C); sem compra; 3 → 8.
+  // Sequência de três quadrados: +3, com uma ligação diagonal.
+  assert.equal(trio.gain,3);assert.deepEqual(trio.glow,[0,1,5]);assert.deepEqual(trio.after,{branco:3,preto:0});
+  // Conversão: nova cobre o círculo (1), antiga cobre o quadrado (2); sem compra; 3 → 8.
   const check=legal(session.states.at(-2),actions.at(-1).action);
-  assert.deepEqual(check.coverage.map(c=>[c.role,c.position,c.color]),[['nova',9,'D'],['antiga',8,'C']]);
-  assert.deepEqual(colors(state,state.board[13].id).sort(),['C','D']);
-  assert.equal(conversion.converted,13);assert.equal(conversion.drew,null);assert.deepEqual(conversion.after,{branco:8,preto:0});
-  assert.equal(state.hands.branco.length,3);assert.equal(state.board[13].owner,'branco');
+  assert.deepEqual(check.coverage.map(c=>[c.role,c.position,c.kind,c.value]),[['nova',2,'shape',1],['antiga',1,'shape',2]]);
+  assert.deepEqual(shapes(state,state.board[6].id).sort(),[1,2]);
+  assert.equal(conversion.converted,6);assert.equal(conversion.drew,null);assert.deepEqual(conversion.after,{branco:8,preto:0});
+  assert.equal(state.hands.branco.length,3);assert.equal(state.board[6].owner,'branco');
   // Depois do roteiro a partida segue normalmente contra o Iniciante.
   assert.equal(state.phase,'jogando');assert.equal(state.current,'preto');assert.ok(legalActions(state).length>0);
   const reply=chooseAction(observeGame(state),{difficulty:'beginner'});assert.equal(legal(state,reply.action).ok,true);
