@@ -1,4 +1,6 @@
-export const RULES_VERSION='GEMAS-RULES-0.2';
+export const RULES_VERSION='GEMAS-RULES-0.3';
+// 0.3: the attribute that commands conversion is chosen per game (shape by default).
+export const CONVERSION_ATTRIBUTES=Object.freeze(['shape','color']);
 export const GENERATOR_VERSION='GEMAS-GENERATOR-1';
 export const OWNERS=Object.freeze(['branco','preto']);
 export const COLOR_IDS=Object.freeze('ABCDEFGH'.split(''));
@@ -20,11 +22,12 @@ export function normalizeConfig(input={}) {
   const positions=input.positions??(centers.every(i=>active.includes(i))?centers:active.slice(0,2));
   demand(Array.isArray(positions)&&positions.length===2&&positions[0]!==positions[1]&&positions.every(i=>active.includes(i)),'A abertura exige duas casas ativas diferentes.');
   const opener=input.opener??'sorteio';demand(opener==='sorteio'||OWNERS.includes(opener),'Primeiro jogador inválido.');
+  const convertBy=input.convertBy??'shape';demand(CONVERSION_ATTRIBUTES.includes(convertBy),'Atributo de conversão inválido: use formas ou cores.');
   const allowLastConversion=input.allowLastConversion??false;
   demand(typeof allowLastConversion==='boolean'&&(input.blockFirstConversion===undefined||typeof input.blockFirstConversion==='boolean'),'Opções de conversão inválidas.');
   // Retained in the configuration fingerprint; this restriction is now mandatory.
   const blockFirstConversion=true;
-  return {rows,columns,colors,shapes,active,positions:[...positions],opener,allowLastConversion,blockFirstConversion};
+  return {rows,columns,colors,shapes,active,positions:[...positions],opener,convertBy,allowLastConversion,blockFirstConversion};
 }
 // Eight-neighbor connectivity, inherited from CM; inactive cells are never vertices.
 export function adjacent(a,b,columns=4) {

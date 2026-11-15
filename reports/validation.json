@@ -2,6 +2,7 @@
   "status": "passed",
   "version": "1.0.0",
   "checks": [
+    "Conversão por formas (padrão) ou cores escolhida na nova partida; dica de pontos ligada no Iniciante e ausente no Experiente.",
     "Abertura do app, regras e nova partida em 320/360/390/768/1280 px: sem rolagem horizontal, alvos ≥ 44 px, texto ≥ 14 px, 16 símbolos do Figma, fontes locais, paleta independente e monte variável.",
     "Salvamentos de regras anteriores: recusados, exportáveis sem alteração e arquivados antes da nova partida.",
     "Partida em tela fixa (Layout A), 4×4 e 6×4, em 390×844, 360×780, 390×664, 360×620, 768×1024, 844×390 e 1280×800: sem rolagem, nada fora da tela, alvos ≥ 44 px, texto ≥ 14 px, gemas inteiras; 6×4 transposto só na apresentação.",
@@ -9,7 +10,7 @@
     "Arrastar (ponteiro) equivale a tocar carta e casa: prévia sem efeito até confirmar; toque em tela sensível funciona.",
     "Teclado: jogada completa sem mouse, foco visível e preservado, setas no tabuleiro, Escape cancela.",
     "Partida completa a dois no 6×4 vertical: 23 comandos, 6 conversões, estado idêntico ao do motor a cada jogada, placar, ligações, pontos por símbolo, menu, regras durante a partida, mão adversária recolhível, desfazer, tela de resultado e revanche.",
-    "Vitória e empate conferidos contra score() do motor na tela de resultado.",
+    "Vitória e empate conferidos contra score() do motor na tela de resultado; no fim, Nova partida ao lado de Resultado repete a configuração, com quem perdeu começando (quem ganhou escolhe as cartas) e sorteio depois de empate.",
     "Modo playtest escondido do jogador e completo: semente, máscara de casas, identificação das cartas, anotações, exportar/carregar partida, exportar histórico, desfazer/refazer um passo, pausa, controle manual e recusa de importações antigas.",
     "Contra o computador (Worker real): abertura, jogada do computador animada e anunciada por aria-live com placar e vez, mão inerte fora da vez, desfazer devolve a vez; grupo que pontua acende, mostra +3 e o placar conta.",
     "Reduzir movimento: nenhuma animação; o ganho e o placar aparecem de imediato.",

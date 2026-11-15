@@ -1,10 +1,10 @@
-# GEMAS 1.0
+# GEMAS 1.1
 
 Jogo de cartas para dois jogadores, no mesmo aparelho ou contra o computador. Cada carta tem duas gemas; ligue cores e formas, converta as cartas do adversário e some mais pontos. As cartas usam o atlas SVG do autor.
 
 [Jogar online pelo GitHub Pages](https://flanigro.github.io/gemas-playtest/) · [Código e histórico](https://github.com/flanigro/gemas-playtest)
 
-CORAÇÕES E MENTES é o projeto principal. GEMAS é um laboratório independente para estudar interface, vínculos, estratégia e formatos de tabuleiro. Seus experimentos não alteram as 48 cartas nem as regras canônicas do CM. Veja a [direção do projeto](docs/DIRECAO_DO_PROJETO.md) e a [entrega 1.0.0](docs/ENTREGA_1.0.0.md).
+CORAÇÕES E MENTES é o projeto principal. GEMAS é um laboratório independente para estudar interface, vínculos, estratégia e formatos de tabuleiro. Seus experimentos não alteram as 48 cartas nem as regras canônicas do CM. Veja a [direção do projeto](docs/DIRECAO_DO_PROJETO.md) e as entregas [1.0.0](docs/ENTREGA_1.0.0.md) e [1.1.0](docs/ENTREGA_1.1.0.md).
 
 ## Abrir
 
@@ -21,7 +21,7 @@ Acesse `http://127.0.0.1:4188`. A entrada modular para desenvolvimento fica em `
 
 ## Jogar
 
-A tela inicial oferece Continuar partida, Nova partida, Aprender a jogar e Regras. **Aprender a jogar** é uma primeira partida guiada: abertura, colocação, grupo de três e conversão, passo a passo, e depois a partida segue livre contra o Iniciante. Em **Nova partida** escolha adversário, nível, sua cor, quem começa, tabuleiro (4×4 ou 6×4), quantidade de cores e formas e a regra opcional da última carta. As configurações são fixadas no início e não alteram uma partida em andamento.
+A tela inicial oferece Continuar partida, Nova partida, Aprender a jogar e Regras. **Aprender a jogar** é uma primeira partida guiada: abertura, colocação, grupo de três e conversão, passo a passo, e depois a partida segue livre contra o Iniciante. Em **Nova partida** escolha adversário, nível, sua cor, quem começa, se a conversão é por formas (padrão) ou por cores, tabuleiro (4×4 ou 6×4), quantidade de cores e formas, a dica de pontos e a regra opcional da última carta. A dica de pontos mostra, ao escolher uma carta, quantos pontos cada jogada faz; existe contra o Iniciante e entre duas pessoas, e não contra o Experiente. As configurações são fixadas no início e não alteram uma partida em andamento.
 
 A partida cabe numa tela fixa, sem rolagem. Em pé: placar no alto, mão do adversário logo abaixo (pode ser recolhida), tabuleiro no meio e a sua mão embaixo. Deitado ou no computador: adversário e placar de um lado, tabuleiro no centro, sua mão do outro. O tabuleiro de 24 casas aparece como 6×4 em pé e 4×6 deitado: é o mesmo tabuleiro transposto, só na apresentação.
 
@@ -35,7 +35,7 @@ Arrastar a carta até a casa faz o mesmo que os passos 1 e 2 e nunca confirma so
 
 Depois de cada jogada a carta desliza até a casa, a carta convertida vira de posse, o grupo que pontua acende com o ganho e o placar conta até o novo valor. A jogada do computador é mostrada do mesmo jeito e anunciada para leitores de tela. Com “reduzir movimento” ligado no sistema, nada se anima.
 
-A posse é o fundo branco ou preto da carta. As ligações entre gemas de grupos que pontuam aparecem sobre o tabuleiro: cor pontilhada, forma contínua. Toque no placar para ver **Pontos por símbolo**. O menu dá acesso às regras durante a partida e às opções Mostrar ligações, Ajuda de conversão e Pontos nas cartas. Ao fim, a tela de resultado mostra o placar, os grupos de cada jogador e Jogar de novo.
+A posse é o fundo branco ou preto da carta. As ligações entre gemas de grupos que pontuam aparecem sobre o tabuleiro: cor pontilhada, forma contínua. Toque no placar para ver **Pontos por símbolo**. O menu dá acesso às regras durante a partida e às opções Mostrar ligações, Ajuda de conversão e Pontos nas cartas. Enquanto quem joga não tem pontos, a linha de instrução lembra a meta: ligar 3 ou mais cartas pela mesma forma ou pela mesma cor. Ao fim, a tela de resultado mostra o placar e as sequências de cada jogador, e **Nova partida** (ao lado de Resultado, e Jogar de novo na própria tela) recomeça com a mesma configuração e cartas novas: quem perdeu faz a primeira jogada e quem ganhou escolhe as cartas de abertura; depois de empate, sorteia-se.
 
 **Modo playtest** (ligado no rodapé da tela inicial, ou abrindo a página com `#playtest`): acrescenta à nova partida a semente e a máscara de casas ativas; no menu da partida, desfazer e refazer um passo, pausar o computador, controle manual, exportar e carregar partida, exportar histórico, anotações, última decisão do computador e histórico; nas cartas, a identificação física.
 
@@ -46,7 +46,8 @@ A posse é o fundo branco ou preto da carta. As ligações entre gemas de grupos
 - Cada carta tem duas gemas: cores distintas e formas distintas. Os atributos nunca mudam na conversão; apenas a posse Branco/Preto muda.
 - Quatro cartas abertas por jogador. Quem não começa escolhe a posse das duas cartas centrais. Cada jogador recebe uma; quem começa é sorteado.
 - Colocar em qualquer casa livre compra uma carta do monte. Não existe carta pública nem colocação diretamente do monte.
-- Converter exige carta nova e apoio antigo, distintos e vizinhos do alvo, cobrindo suas duas cores. Formas não participam. Um alvo, sem cascata, sem compra e sem proteção de sequência.
+- Converter exige carta nova e apoio antigo, distintos e vizinhos do alvo, cobrindo os dois valores do atributo de conversão do alvo: as duas formas (padrão) ou as duas cores, conforme a escolha na nova partida. O outro atributo não participa. Um alvo, sem cascata, sem compra e sem proteção de sequência.
+- A pontuação é a mesma nos dois modos de conversão.
 - Para cada posse, cada cor e forma pontua independentemente: +1 por carta em componente de três ou mais, por lados e diagonais. Uma carta pode somar até +4. Não há bônus de grupo de posse nem de combo cadastrado.
 - A última carta da mão não converte por padrão. Na variante ela pode converter; mãos vazias passam automaticamente. Fim com tabuleiro cheio ou ambas as mãos vazias; a conversão final é resolvida antes da contagem. Só o tabuleiro pontua.
 - Não é permitido converter na primeira jogada de cada jogador. A abertura não conta como jogada. Esta restrição é obrigatória.
@@ -55,7 +56,7 @@ A posse é o fundo branco ou preto da carta. As ligações entre gemas de grupos
 
 ## Partidas anteriores
 
-A versão 1.0.0 usa `GEMAS-RULES-0.2`, as mesmas regras da 0.2.0: partidas salvas na 0.2.0 continuam válidas. Partidas de regras anteriores não são reinterpretadas nem retomadas. Se houver um salvamento antigo neste navegador, as telas de início e de nova partida oferecem Exportar partida anterior. Antes de salvar uma nova partida, o jogo copia o anterior para uma chave de arquivo local. Os arquivos antigos permanecem identificados por sua versão.
+A versão 1.1.0 usa `GEMAS-RULES-0.3`, em que o atributo de conversão é escolhido em cada partida. Partidas salvas com `GEMAS-RULES-0.2` (versões 0.2.0 e 1.0.0) e anteriores não são reinterpretadas nem retomadas. Se houver um salvamento antigo neste navegador, as telas de início e de nova partida oferecem Exportar partida anterior. Antes de salvar uma nova partida, o jogo copia o anterior para uma chave de arquivo local. Os arquivos antigos permanecem identificados por sua versão.
 
 ## Geração e repetição
 

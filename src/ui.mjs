@@ -1,5 +1,5 @@
 import {GameSession} from './session.mjs';
-import {newGame,score,legal,cardById} from './engine.mjs';
+import {newGame,score,legal,cardById,dispatch} from './engine.mjs';
 import {OWNERS,COLOR_IDS,COLOR_NAMES,SHAPE_NAMES,RULES_VERSION,GENERATOR_VERSION,other,adjacent,normalizeConfig} from './config.mjs';
 import {analyzeDeck} from './generator.mjs';
 import {observeGame,chooseAction} from './opponent.mjs';
@@ -10,7 +10,7 @@ import {TUTORIAL,tutorialSetup} from './tutorial.mjs';
 
 // Interface do GEMAS 1.0. Regras, estado e IA vivem nos outros módulos: aqui só se
 // consulta o motor (legal, conversionMoves, score) e se desenha o resultado.
-const APP_VERSION='1.0.0';
+const APP_VERSION='1.1.0';
 const root=document.querySelector('#app');
 const STORAGE_KEY='GEMAS-playtest-0.1',PREF_KEY='GEMAS-preferences-0.1',ARCHIVE_KEY='GEMAS-playtest-regras-anteriores';
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -35,20 +35,23 @@ const gemName=g=>`${colorName(g.color)} ${SHAPE_NAMES[g.shape-1]}`;
 const plural=(n,one,many)=>`${n} ${n===1?one:many}`;
 const capital=text=>text.charAt(0).toUpperCase()+text.slice(1);
 const freshSeed=()=>`GEMAS-${Date.now().toString(36).toUpperCase()}`;
+const convertWord=config=>config.convertBy==='color'?{plural:'cores',singular:'cor',other:'formas'}:{plural:'formas',singular:'forma',other:'cores'};
+// A dica de pontos só existe contra o Iniciante ou entre duas pessoas: a partida difícil não tem.
+const hintsAllowed=source=>source.opponent!=='computer'||source.difficulty!=='experienced';
 const reducedMotion=()=>matchMedia('(prefers-reduced-motion: reduce)').matches;
 const isWide=()=>innerWidth>=700&&innerWidth>innerHeight;
 
-const defaultSettings={columns:4,colors:6,shapes:8,opponent:'computer',difficulty:'beginner',human:'branco',opener:'sorteio',allowLastConversion:false};
+const defaultSettings={columns:4,colors:6,shapes:8,convertBy:'shape',opponent:'computer',difficulty:'beginner',human:'branco',opener:'sorteio',allowLastConversion:false,pointHints:true};
 const defaultView={help:true,chains:true,points:false,playtest:false,tutorialDone:false,oppOpen:true};
 let settings={...defaultSettings,seed:freshSeed()},view={...defaultView};
-function configFrom(source){return normalizeConfig({columns:source.columns,colors:source.colors,shapes:source.shapes,opener:source.opener,allowLastConversion:source.allowLastConversion,...(source.active?{active:source.active}:{})});}
+function configFrom(source){return normalizeConfig({columns:source.columns,colors:source.colors,shapes:source.shapes,opener:source.opener,convertBy:source.convertBy,allowLastConversion:source.allowLastConversion,...(source.active?{active:source.active}:{})});}
 try{
   const old=JSON.parse(localStorage.getItem(PREF_KEY));
   if(old&&typeof old==='object'){
     const candidate={...settings};
-    for(const key of ['columns','colors','shapes','opponent','difficulty','human','opener','allowLastConversion','active'])if(old[key]!==undefined)candidate[key]=old[key];
+    for(const key of ['columns','colors','shapes','convertBy','opponent','difficulty','human','opener','allowLastConversion','pointHints','active'])if(old[key]!==undefined)candidate[key]=old[key];
     configFrom(candidate);
-    if(!['computer','manual'].includes(candidate.opponent)||!['beginner','experienced'].includes(candidate.difficulty)||!OWNERS.includes(candidate.human))throw Error('Preferências inválidas.');
+    if(typeof candidate.pointHints!=='boolean'||!['computer','manual'].includes(candidate.opponent)||!['beginner','experienced'].includes(candidate.difficulty)||!OWNERS.includes(candidate.human))throw Error('Preferências inválidas.');
     settings=candidate;
     if(old.view&&typeof old.view==='object')for(const key of Object.keys(defaultView))if(typeof old.view[key]==='boolean')view[key]=old.view[key];
   }
@@ -93,19 +96,30 @@ const cardLabel=id=>cardById(session.state,id).gems.map(gemName).join(' e ');
 const currentLayout=()=>boardLayout(session.state.config,!isWide());
 const lastSummary=()=>session.cursor>0?moveSummary(session.states[session.cursor-1],session.state):null;
 const tutorialStep=()=>tutorial&&!tutorial.free?TUTORIAL.steps[tutorial.step]:null;
+const hintsOn=()=>Boolean(session?.setup.pointHints)&&!tutorialStep();
+// Pontos que a jogada daria a quem joga: só consulta o motor, sem alterar a partida.
+const gainCache=new Map();
+function gainOf(action){
+  const key=`${session.cursor}:${JSON.stringify(action)}`;
+  if(!gainCache.has(key)){const s=session.state,owner=s.current;if(gainCache.size>400)gainCache.clear();gainCache.set(key,score(dispatch(s,action,{validate:false}))[owner].total-score(s)[owner].total);}
+  return gainCache.get(key);
+}
 
 function openSession(next,guided=null){
   controller.cancel();session=next;tutorial=guided;screen='game';modal=null;paused=false;notice='';noticeError=false;settleAt=0;resultSeen=null;resetSelection();
 }
 function startGame(){
-  const setup={seed:settings.seed,config:configFromSettings(),players:Object.fromEntries(OWNERS.map(p=>[p,settings.opponent==='computer'&&p!==settings.human?'computer':'human'])),difficulty:settings.difficulty};
+  const setup={seed:settings.seed,config:configFromSettings(),players:Object.fromEntries(OWNERS.map(p=>[p,settings.opponent==='computer'&&p!==settings.human?'computer':'human'])),difficulty:settings.difficulty,pointHints:hintsAllowed(settings)&&settings.pointHints};
   const previous=readStored();if(previous&&!isCurrentSave(previous))localStorage.setItem(ARCHIVE_KEY,previous);
   openSession(new GameSession(setup));settings.seed=freshSeed();savePreferences();persist();announce('Nova partida.');render();
 }
 function rematch(){
   if(session.setup.tutorial){screen='setup';modal=null;render();return;}
-  const {seed,...setup}=session.setup;
-  openSession(new GameSession({...setup,seed:freshSeed()}));persist();announce('Nova partida.');render();
+  const {seed,...setup}=session.setup,winner=score(session.state).winner;
+  // Quem perdeu faz a primeira jogada; quem ganhou escolhe as cartas de abertura. Empate: sorteio.
+  const opener=winner==='empate'?'sorteio':other(winner);
+  openSession(new GameSession({...setup,config:{...setup.config,opener},seed:freshSeed()}));persist();
+  announce(`Nova partida. ${winner==='empate'?'Quem começa foi sorteado.':`${subject(other(winner))} começa; ${subject(winner).toLowerCase()} escolhe as cartas de abertura.`}`);render();
 }
 function startTutorial(){openSession(new GameSession(tutorialSetup()),{step:0,free:false});announce(TUTORIAL.steps[0].text);render();}
 function advanceTutorial(){
@@ -168,7 +182,7 @@ function shortMove(m){
 function statusModel(){
   const s=session.state,two=!againstComputer();
   if(notice)return {text:notice,tone:noticeError?'hint':'',cancel:selection.cardId!==null};
-  if(s.phase==='finalizada')return {text:`Partida encerrada. ${resultSentence()}`,button:['result','Resultado']};
+  if(s.phase==='finalizada')return {text:`Partida encerrada. ${resultSentence()}`,buttons:[['result','Resultado'],['rematch','Nova partida']]};
   if(s.phase==='abertura'){
     if(isComputer())return {text:'Abertura: o computador escolhe qual carta do centro fica com ele.'};
     const chooser=two?`${ownerName(s.current)} escolhe`:'escolha';
@@ -176,13 +190,18 @@ function statusModel(){
   }
   if(isComputer())return paused?{text:'Computador pausado.',button:['pause','Retomar']}:{text:`${shortMove(lastSummary())}O computador está pensando…`};
   const turn=two?`Vez do ${ownerName(s.current)}`:'Sua vez';
-  if(selection.cardId===null)return {text:`${shortMove(lastSummary())}${turn}: toque numa carta.`};
+  // Enquanto quem joga não pontua, a meta do jogo fica na linha de instrução.
+  if(selection.cardId===null)return {text:score(s)[s.current].total===0?`${turn}. Ligue 3 ou mais cartas suas pela mesma forma ou pela mesma cor.`:`${shortMove(lastSummary())}${turn}: toque numa carta.`};
   if(selection.position===null){
     if(selection.target!==null)return {text:'Escolha uma casa marcada com setas.',cancel:true};
     const any=view.help&&conversionMoves(s,selection.cardId).length>0;
     return {text:any?'Escolha uma casa. As com setas permitem converter.':'Escolha uma casa livre.',cancel:true};
   }
-  const targets=conversionMoves(s,selection.cardId,{position:selection.position}).length>0;
+  const options=conversionMoves(s,selection.cardId,{position:selection.position}),targets=options.length>0;
+  if(hintsOn()){
+    const place=gainOf({type:'move',mode:'normal',cardId:selection.cardId,position:selection.position}),best=Math.max(0,...options.map(o=>gainOf(o.action)));
+    return {text:targets?`Colocar: +${place}. Converter: até +${best}.`:`Colocar aqui: +${place}. Toque de novo para confirmar.`,cancel:true};
+  }
   return {text:targets?'Converta na carta marcada ou confirme na casa.':'Toque de novo na casa para confirmar.',cancel:true};
 }
 
@@ -223,14 +242,19 @@ function boardMarkup(layout,points,last){
     }else if(cell){
       const confirm=fromHere.has(i),flipped=last?.converted===i,perCard=view.points?points[cell.owner].perCard.find(c=>c.position===i)?.points:0;
       classes=`filled ${last?.position===i?'last':''} ${view.help&&targets.has(i)?'convertible':''} ${selection.target===i||confirm?'target':''}`;
-      inner=card(cell.id,cell.owner,confirm?'has-chip':'',`${flipped&&!confirm?`<span class="turned">${icon('convert',13,2.6)}</span>`:''}${perCard?`<span class="card-points">+${perCard}</span>`:''}${confirm?chip('convert','Converter'):''}`);
-      label=confirm?`Converter a carta ${cardLabel(cell.id)}, na ${layout.label(i)}`:`${where}, carta ${cell.owner==='branco'?'branca':'preta'}, ${cardLabel(cell.id)}${view.help&&targets.has(i)?', pode ser convertida':''}${flipped?', convertida na última jogada':''}`;
+      inner=card(cell.id,cell.owner,confirm?'has-chip':'',`${flipped&&!confirm?`<span class="turned">${icon('convert',13,2.6)}</span>`:''}${perCard?`<span class="card-points">+${perCard}</span>`:''}${confirm?chip('convert','Converter'):''}${confirm&&hintsOn()?`<span class="hint-points">+${gainOf({type:'move',mode:'converter',cardId,position:selection.position,target:i})}</span>`:''}`);
+      label=confirm?`Converter a carta ${cardLabel(cell.id)}, na ${layout.label(i)}${hintsOn()?`, ${plural(gainOf({type:'move',mode:'converter',cardId,position:selection.position,target:i}),'ponto','pontos')}`:''}`:`${where}, carta ${cell.owner==='branco'?'branca':'preta'}, ${cardLabel(cell.id)}${view.help&&targets.has(i)?', pode ser convertida':''}${flipped?', convertida na última jogada':''}`;
     }else if(cardId!==null&&selection.position===i){
-      classes='filled preview';inner=card(cardId,s.current,'has-chip',chip('check','Colocar'));
+      classes='filled preview';const place=hintsOn()?gainOf({type:'move',mode:'normal',cardId,position:i}):0;
+      inner=card(cardId,s.current,'has-chip',`${chip('check','Colocar')}${place?`<span class="hint-points">+${place}</span>`:''}`);if(place)label+=`, ${plural(place,'ponto','pontos')}`;
       label=`Confirmar: colocar ${cardLabel(cardId)} na ${layout.label(i)}${fromHere.size?', sem converter':''}`;
     }else if(cardId!==null){
       const conv=convertCell(i);classes=conv?'ok conv':'ok';inner=conv?icon('convert',24):icon('plus',20,1.6);
       if(conv)label+=', permite converter';
+      if(hintsOn()){
+        const gain=Math.max(gainOf({type:'move',mode:'normal',cardId,position:i}),...all.filter(o=>o.action.position===i).map(o=>gainOf(o.action)));
+        if(gain>0){inner+=`<span class="hint-points">+${gain}</span>`;label+=`, até ${plural(gain,'ponto','pontos')}`;}
+      }
     }
     return `<div class="slot" data-slot="${i}"><button class="cell ${classes} ${marks}" data-cell="${i}" data-k="cell-${i}" aria-label="${label}">${inner}</button></div>`;
   }).join('');
@@ -248,7 +272,8 @@ function handMarkup(owner){
 }
 function statusMarkup(){
   const model=statusModel();
-  return `<div class="status"><p class="${model.tone||''}">${esc(model.text)}</p>${model.button?`<button class="ghost" data-action="${model.button[0]}" data-k="status-button">${model.button[1]}</button>`:model.cancel?'<button class="ghost" data-action="cancel" data-k="status-button">Cancelar</button>':''}</div>`;
+  const buttons=model.buttons??(model.button?[model.button]:model.cancel?[['cancel','Cancelar']]:[]);
+  return `<div class="status"><p class="${model.tone||''}">${esc(model.text)}</p>${buttons.length?`<div class="status-actions">${buttons.map(([action,text],i)=>`<button class="ghost" data-action="${action}" data-k="status-button${i?`-${action}`:''}">${text}</button>`).join('')}</div>`:''}</div>`;
 }
 function coachMarkup(){
   const step=tutorialStep(),index=tutorial.step+1,total=TUTORIAL.steps.length;
@@ -256,7 +281,7 @@ function coachMarkup(){
 }
 function gameMarkup(){
   const s=session.state,wide=isWide(),layout=boardLayout(s.config,!wide),points=score(s),bottom=bottomOwner(),order=againstComputer()?[humanSide(),other(humanSide())]:OWNERS,guiding=Boolean(tutorialStep());
-  return `<div class="game ${wide?'wide':'tall'}" data-phase="${s.phase}"><div class="side side-a"><header class="topbar"><button class="icon" data-action="menu" data-k="menu" aria-label="Menu">${icon('menu')}</button><span class="word">GEMAS</span>${guiding?`<button class="icon" data-action="home" data-k="undo" aria-label="Sair do tutorial">${icon('close')}</button>`:`<button class="icon" data-action="undo" data-k="undo" aria-label="Desfazer a última jogada" ${!session.cursor?'disabled':''}>${icon('undo')}</button>`}</header><div class="scores">${order.map(owner=>scorePanel(owner,points)).join('')}</div>${opponentMarkup(other(bottom))}</div><div class="board-zone">${boardMarkup(layout,points,lastSummary())}</div><div class="side side-b">${guiding?coachMarkup():statusMarkup()}${handMarkup(bottom)}</div></div>`;
+  return `<div class="game ${wide?'wide':'tall'}" data-phase="${s.phase}"><div class="side side-a"><header class="topbar"><button class="icon" data-action="menu" data-k="menu" aria-label="Menu">${icon('menu')}</button><span class="brand"><span class="word">GEMAS</span><span class="mode">conversão por ${convertWord(s.config).plural}</span></span>${guiding?`<button class="icon" data-action="home" data-k="undo" aria-label="Sair do tutorial">${icon('close')}</button>`:`<button class="icon" data-action="undo" data-k="undo" aria-label="Desfazer a última jogada" ${!session.cursor?'disabled':''}>${icon('undo')}</button>`}</header><div class="scores">${order.map(owner=>scorePanel(owner,points)).join('')}</div>${opponentMarkup(other(bottom))}</div><div class="board-zone">${boardMarkup(layout,points,lastSummary())}</div><div class="side side-b">${guiding?coachMarkup():statusMarkup()}${handMarkup(bottom)}</div></div>`;
 }
 
 /* ---------- Início e nova partida ---------- */
@@ -282,23 +307,27 @@ function laboratorySetup(){
 }
 function setupMarkup(){
   const computer=settings.opponent==='computer';
-  return `<div class="page setup"><header class="page-head"><button class="icon" data-action="home" data-k="back" aria-label="Voltar ao início">${icon('close')}</button><h1>Nova partida</h1><button class="ghost" data-action="rules" data-k="rules">Regras</button></header><div class="setup-grid"><section class="panel"><h2>Adversário</h2>${segments('opponent','Adversário',[['computer','Computador'],['manual','Duas pessoas']])}${computer?segments('difficulty','Nível',[['beginner','Iniciante'],['experienced','Experiente']]):''}</section><section class="panel">${computer?`<h2>Sua cor</h2>${segments('human','Sua cor',[['branco','Branco'],['preto','Preto']])}`:''}<h2>Quem começa</h2>${segments('opener','Quem começa',[['sorteio','Sorteio'],['branco','Branco'],['preto','Preto']])}<p class="muted">Quem não começa escolhe a posse das duas cartas de abertura.</p></section><section class="panel"><h2>Tabuleiro</h2><div class="board-options">${boardChoice(4)}${boardChoice(6)}</div></section><section class="panel"><h2>Paleta</h2>${countControl('colors','Cores')}${paletteRow('colors')}${countControl('shapes','Formas')}${paletteRow('shapes')}<p class="muted">Menos cores, mais conversões. Menos formas, grupos maiores.</p>${deckSummary()}</section><section class="panel"><h2>Regra opcional</h2><label class="switch-row"><span>A última carta pode converter<small>Quem converte com a última carta fica de mão vazia e passa a vez até o fim.</small></span><input id="allow-last" data-k="allow-last" type="checkbox" role="switch" ${settings.allowLastConversion?'checked':''}><span class="switch" aria-hidden="true"></span></label></section>${laboratorySetup()}</div>${oldSaveNotice()}${notice?`<p class="notice ${noticeError?'error':''}">${esc(notice)}</p>`:''}<footer class="setup-foot"><button class="primary" data-action="start" data-k="start">Começar partida</button></footer></div>`;
+  return `<div class="page setup"><header class="page-head"><button class="icon" data-action="home" data-k="back" aria-label="Voltar ao início">${icon('close')}</button><h1>Nova partida</h1><button class="ghost" data-action="rules" data-k="rules">Regras</button></header><div class="setup-grid"><section class="panel"><h2>Adversário</h2>${segments('opponent','Adversário',[['computer','Computador'],['manual','Duas pessoas']])}${computer?segments('difficulty','Nível',[['beginner','Iniciante'],['experienced','Experiente']]):''}</section><section class="panel">${computer?`<h2>Sua cor</h2>${segments('human','Sua cor',[['branco','Branco'],['preto','Preto']])}`:''}<h2>Quem começa</h2>${segments('opener','Quem começa',[['sorteio','Sorteio'],['branco','Branco'],['preto','Preto']])}<p class="muted">Quem não começa escolhe a posse das duas cartas de abertura.</p></section><section class="panel"><h2>Conversão</h2>${segments('convertBy','Conversão por',[['shape','Por formas'],['color','Por cores']])}<p class="muted">Para converter, a carta nova e uma carta sua vizinha cobrem as duas ${convertWord(settings).plural} da carta adversária. A pontuação não muda: formas e cores pontuam igual.</p></section><section class="panel"><h2>Tabuleiro</h2><div class="board-options">${boardChoice(4)}${boardChoice(6)}</div></section><section class="panel"><h2>Paleta</h2>${countControl('colors','Cores')}${paletteRow('colors')}${countControl('shapes','Formas')}${paletteRow('shapes')}<p class="muted">${settings.convertBy==='color'?'Menos cores, mais conversões. Menos formas, sequências maiores.':'Menos formas, mais conversões. Menos cores, sequências maiores.'}</p>${deckSummary()}</section><section class="panel"><h2>Ajuda</h2>${hintsAllowed(settings)?`<label class="switch-row"><span>Mostrar os pontos das jogadas<small>Ao escolher uma carta, cada casa mostra quantos pontos a jogada faz.</small></span><input id="point-hints" data-k="point-hints" type="checkbox" role="switch" ${settings.pointHints?'checked':''}><span class="switch" aria-hidden="true"></span></label>`:'<p class="muted">Contra o Experiente, a partida não mostra os pontos das jogadas.</p>'}</section><section class="panel"><h2>Regra opcional</h2><label class="switch-row"><span>A última carta pode converter<small>Quem converte com a última carta fica de mão vazia e passa a vez até o fim.</small></span><input id="allow-last" data-k="allow-last" type="checkbox" role="switch" ${settings.allowLastConversion?'checked':''}><span class="switch" aria-hidden="true"></span></label></section>${laboratorySetup()}</div>${oldSaveNotice()}${notice?`<p class="notice ${noticeError?'error':''}">${esc(notice)}</p>`:''}<footer class="setup-foot"><button class="primary" data-action="start" data-k="start">Começar partida</button></footer></div>`;
 }
 
 /* ---------- Folhas: regras, pontos, resultado, menu ---------- */
 function exampleCard(owner,gems){return `<span class="ex-card"><span class="card ${owner}">${gems.map(([color,shape])=>gem({color,shape},true)).join('')}</span></span>`;}
 function rulesMarkup(){
-  return `<h3>Objetivo</h3><p>Ter mais pontos que o adversário quando a partida acabar. Só as cartas no tabuleiro pontuam.</p>
-<h3>As cartas</h3><p>Cada carta tem duas gemas, de cores diferentes e de formas diferentes. As gemas nunca mudam. O fundo mostra de quem a carta é: branco ou preto. As mãos ficam abertas, e os dois jogadores veem todas as cartas.</p>
-<h3>Preparação</h3><p>Cada jogador recebe quatro cartas. Duas cartas entram no centro do tabuleiro, e quem não começa escolhe qual delas fica com cada jogador. A abertura não conta como jogada.</p>
+  const config=screen==='game'&&session?session.state.config:configFromSettings(),w=convertWord(config),shape=config.convertBy!=='color';
+  const example=shape
+    ?`${exampleCard('branco',[['E',2],['A',4]])}${exampleCard('preto',[['C',2],['D',1]])}${exampleCard('branco',[['F',1],['B',3]])}<span class="ex-note">A carta preta tem quadrado e círculo. Uma carta branca vizinha cobre o quadrado e a outra cobre o círculo: a preta vira branca.</span>`
+    :`${exampleCard('branco',[['C',1],['A',2]])}${exampleCard('preto',[['D',3],['C',1]])}${exampleCard('branco',[['C',4],['D',1]])}<span class="ex-note">A carta preta tem verde e amarelo. Uma carta branca vizinha cobre o amarelo e a outra cobre o verde: a preta vira branca.</span>`;
+  return `<h3>Objetivo</h3><p>Ter mais pontos que o adversário quando a partida acabar. Os pontos vêm das <strong>sequências</strong>: três ou mais cartas suas ligadas pela mesma forma ou pela mesma cor. Só as cartas no tabuleiro pontuam.</p>
+<h3>As cartas</h3><p>Cada carta tem duas gemas, de formas diferentes e de cores diferentes. As gemas nunca mudam. O fundo mostra de quem a carta é: branco ou preto. As mãos ficam abertas, e os dois jogadores veem todas as cartas.</p>
+<h3>Preparação</h3><p>Cada jogador recebe quatro cartas. Duas cartas entram no centro do tabuleiro, e quem não começa escolhe qual delas fica com cada jogador. A abertura não conta como jogada. Numa nova partida pedida no fim, quem perdeu começa e quem ganhou escolhe as cartas; depois de um empate, sorteia-se.</p>
 <h3>Na sua vez</h3><ol><li><strong>Colocar:</strong> ponha uma carta da mão em qualquer casa livre e compre uma carta do monte.</li><li><strong>Colocar e converter:</strong> ponha a carta ao lado de uma carta adversária e tome essa carta para você. Quem converte não compra.</li></ol>
-<h3>Como converter</h3><p>A carta nova e uma carta sua que já estava no tabuleiro precisam ser vizinhas do alvo. Juntas, elas cobrem as duas cores do alvo: uma cor em cada carta. As formas não participam da conversão.</p>
-<div class="example">${exampleCard('branco',[['C',1],['A',2]])}${exampleCard('preto',[['D',3],['C',1]])}${exampleCard('branco',[['C',4],['D',1]])}<span class="ex-note">A carta preta tem verde e amarelo. Uma carta branca vizinha cobre o amarelo e a outra cobre o verde: a preta vira branca.</span></div>
-<ul><li>Converte-se uma única carta por jogada, sem efeito em cadeia.</li><li>Grupos e formas não protegem nenhuma carta.</li><li>A primeira jogada de cada jogador não pode converter.</li><li>A última carta adversária que restar no tabuleiro não pode ser convertida.</li><li>A última carta da sua mão não pode converter. Na regra opcional ela pode, e quem fica sem cartas passa a vez até o fim.</li></ul>
+<h3>Como converter</h3><p>${shape?'Nesta partida, as formas comandam a conversão.':'Nesta partida, as cores comandam a conversão.'} A carta nova e uma carta sua que já estava no tabuleiro precisam ser vizinhas do alvo. Juntas, elas cobrem as duas ${w.plural} do alvo: uma ${w.singular} em cada carta. As ${w.other} não participam da conversão. A escolha entre formas e cores é feita na nova partida.</p>
+<div class="example">${example}</div>
+<ul><li>Converte-se uma única carta por jogada, sem efeito em cadeia.</li><li>Sequências não protegem nenhuma carta.</li><li>A primeira jogada de cada jogador não pode converter.</li><li>A última carta adversária que restar no tabuleiro não pode ser convertida.</li><li>A última carta da sua mão não pode converter. Na regra opcional ela pode, e quem fica sem cartas passa a vez até o fim.</li></ul>
 <h3>Vizinhança</h3><p>Vale pelos lados e pelas diagonais: cada casa tem até oito vizinhas.</p>
-<h3>Pontos</h3><p>Cada cor e cada forma contam em separado. Quando três ou mais cartas suas estão ligadas pela mesma cor, ou pela mesma forma, cada carta do grupo vale 1 ponto. Uma carta pode pontuar até quatro vezes: pelas duas cores e pelas duas formas.</p>
+<h3>Pontos</h3><p>Cada forma e cada cor contam em separado, e pontuam igual nos dois modos de conversão. Quando três ou mais cartas suas estão ligadas pela mesma forma, ou pela mesma cor, cada carta da sequência vale 1 ponto. Uma carta pode pontuar até quatro vezes: pelas duas formas e pelas duas cores.</p>
 <div class="example">${exampleCard('branco',[['A',6],['E',2]])}${exampleCard('branco',[['A',3],['D',5]])}${exampleCard('branco',[['F',7],['A',1]])}<span class="ex-note">Três cartas brancas ligadas pelo vermelho: 3 pontos para o Branco.</span></div>
-<p>Cartas do adversário, ou sem aquele símbolo, não fazem ponte. Os pontos são refeitos a cada jogada: uma conversão pode desmanchar um grupo.</p>
+<p>Cartas do adversário, ou sem aquele símbolo, não fazem ponte. Os pontos são refeitos a cada jogada: uma conversão pode desmanchar uma sequência.</p>
 <h3>Fim da partida</h3><p>A partida acaba quando o tabuleiro enche ou quando as duas mãos ficam vazias. Vence quem tiver mais pontos; totais iguais dão empate.</p>
 <p class="muted">GEMAS ${APP_VERSION} · ${RULES_VERSION}</p>`;
 }
@@ -323,7 +352,7 @@ function resultTitle(){
 function resultMarkup(){
   const s=session.state,points=score(s),side=owner=>`<div class="final-side ${points.winner===owner?'winner':''}"><span class="who"><span class="dot ${owner}"></span>${playerLabel(owner)}</span><strong>${points[owner].total}</strong><small>${points[owner].colorPoints} de cores + ${points[owner].shapePoints} de formas</small></div>`;
   const order=againstComputer()?[humanSide(),other(humanSide())]:OWNERS;
-  return `<p class="eyebrow">${s.endReason==='maos-vazias'?'As duas mãos ficaram vazias':'Tabuleiro completo'}</p><div class="final">${order.map(side).join('')}</div>${order.map(owner=>`<h3>${!againstComputer()?`Grupos do ${ownerName(owner)}`:session.setup.players[owner]==='human'?'Seus grupos':'Grupos do computador'}</h3>${chainList(owner,points)}`).join('')}<div class="dialog-actions"><button class="primary" data-action="rematch" data-k="rematch">Jogar de novo</button><button class="secondary" data-action="new" data-k="new">Mudar a configuração</button><button class="secondary" data-action="close" data-k="see-board">Ver o tabuleiro</button></div>`;
+  return `<p class="eyebrow">${s.endReason==='maos-vazias'?'As duas mãos ficaram vazias':'Tabuleiro completo'}</p><div class="final">${order.map(side).join('')}</div>${order.map(owner=>`<h3>${!againstComputer()?`Grupos do ${ownerName(owner)}`:session.setup.players[owner]==='human'?'Seus grupos':'Grupos do computador'}</h3>${chainList(owner,points)}`).join('')}<p class="muted">${session.setup.tutorial?'':points.winner==='empate'?'Na próxima partida, quem começa será sorteado.':`Na próxima partida, ${subject(other(points.winner)).toLowerCase()} começa e ${subject(points.winner).toLowerCase()} escolhe as cartas de abertura.`}</p><div class="dialog-actions"><button class="primary" data-action="rematch" data-k="rematch">Jogar de novo</button><button class="secondary" data-action="new" data-k="new">Mudar a configuração</button><button class="secondary" data-action="close" data-k="see-board">Ver o tabuleiro</button></div>`;
 }
 function switchRow(id,label,note,checked){return `<label class="switch-row"><span>${label}${note?`<small>${note}</small>`:''}</span><input id="${id}" data-k="${id}" type="checkbox" role="switch" ${checked?'checked':''}><span class="switch" aria-hidden="true"></span></label>`;}
 function laboratoryPanel(){
@@ -345,10 +374,11 @@ function closeModal(){if(modal==='result')resultSeen=session?.state??null;modal=
 /* ---------- Desenho, medidas e respostas visuais ---------- */
 function fitBoard(){
   const zone=root.querySelector('.board-zone'),board=zone?.querySelector('.board');if(!board)return;
-  const layout=currentLayout(),gap=zone.clientWidth<430?6:8,frame=18;
+  const layout=currentLayout(),gap=zone.clientWidth<430?5:8,frame=zone.clientWidth<430?12:18;
   const wmax=(zone.clientWidth-frame-(layout.columns-1)*gap)/layout.columns,hmax=(zone.clientHeight-frame-(layout.rows-1)*gap)/layout.rows;
-  const cw=Math.max(34,Math.floor(Math.min(wmax,hmax*1.3,118))),ch=Math.max(34,Math.floor(Math.min(hmax,cw*1.36))),flat=cw>ch*1.04;
-  const size=Math.floor(Math.min(46,flat?Math.min((cw-14)/2,ch-12):Math.min(cw*.6,(ch-13)/2))),chip=Math.floor(Math.min(size,(cw-13)/2,ch-38));
+  const cw=Math.max(34,Math.floor(Math.min(wmax,hmax*1.3,124))),ch=Math.max(34,Math.floor(Math.min(hmax,cw*1.55))),flat=cw>ch*1.04;
+  // Gemas grandes: a carta cede a margem, e o recorte do atlas (styles.css) já tira o vazio em volta da forma.
+  const size=Math.floor(Math.min(68,flat?Math.min((cw-6)/2,ch-8):Math.min(cw*.82,(ch-5)/2))),chip=Math.floor(Math.min(size,(cw-8)/2,ch-36));
   board.classList.toggle('flat',flat);board.classList.toggle('narrow',cw<78);
   for(const [name,value] of [['--cw',cw],['--ch',ch],['--gap',gap],['--gs',size],['--gc',Math.max(12,chip)]])board.style.setProperty(name,`${value}px`);
 }
@@ -542,6 +572,7 @@ root.addEventListener('click',event=>{
 root.addEventListener('change',async event=>{
   const el=event.target;
   try{
+    if(el.id==='point-hints'){settings.pointHints=el.checked;savePreferences();render();}
     if(el.id==='allow-last'){settings.allowLastConversion=el.checked;savePreferences();render();}
     if(el.id==='seed'){if(!el.value.trim())throw Error('Informe uma semente.');settings.seed=el.value.trim();render();}
     if(el.id==='mask'){if(el.value.trim()){const active=el.value.split(',').map(v=>Number(v.trim()));normalizeConfig({...configFromSettings(),active,positions:undefined});settings.active=active;}else delete settings.active;savePreferences();render();}
